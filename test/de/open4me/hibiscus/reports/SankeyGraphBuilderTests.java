@@ -30,6 +30,9 @@ final class SankeyGraphBuilderTests
         checkNode(graph, "available", 3000d);
         checkNodeName(graph, "available", "Verfügbare Mittel");
         checkNode(graph, "sub:rent", 2000d);
+        checkPercentageBase(graph, "expense:housing", 3000d);
+        checkPercentageBase(graph, "surplus", 3000d);
+        checkPercentageBase(graph, "sub:rent", 2000d);
         checkFilter(graph, "expense:housing", "housing", true, false);
         checkFilter(graph, "sub:rent", "rent", false, false);
         checkConservation(graph);
@@ -43,6 +46,8 @@ final class SankeyGraphBuilderTests
         checkNode(graph, "deficit", 500d);
         checkNode(graph, "available", 2000d);
         checkNodeName(graph, "available", "Benötigte Mittel");
+        checkPercentageBase(graph, "deficit", 2000d);
+        checkPercentageBase(graph, "expense:housing", 2000d);
         FlowAggregatorTests.check(graph.links().stream().anyMatch(link ->
             link.sourceId().equals("deficit") && link.targetId().equals("available") && link.amount() == 500d),
             "deficit must flow into available funds");
@@ -125,6 +130,13 @@ final class SankeyGraphBuilderTests
         SankeyGraph.Node node = graph.nodes().stream().filter(candidate -> candidate.id().equals(id)).findFirst()
             .orElseThrow(() -> new AssertionError("missing node " + id));
         FlowAggregatorTests.checkEquals(name, node.name(), "node name " + id);
+    }
+
+    private static void checkPercentageBase(SankeyGraph graph, String id, double percentageBase)
+    {
+        SankeyGraph.Node node = graph.nodes().stream().filter(candidate -> candidate.id().equals(id)).findFirst()
+            .orElseThrow(() -> new AssertionError("missing node " + id));
+        FlowAggregatorTests.checkEquals(percentageBase, node.percentageBase(), "percentage base " + id);
     }
 
     private static void checkFilter(SankeyGraph graph, String id, String categoryId,

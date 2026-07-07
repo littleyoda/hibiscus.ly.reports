@@ -43,7 +43,7 @@ public class SankeyGraphBuilder
         double deficit = Math.max(0d, expenseTotal - incomeTotal);
         if (deficit > 0d)
         {
-            nodes.add(new SankeyGraph.Node("deficit", "Defizit", deficit, incomeTotal,
+            nodes.add(new SankeyGraph.Node("deficit", "Defizit", deficit, available,
                 DEFICIT_COLOR, 0, null, null));
             links.add(new SankeyGraph.Link("deficit", "available", deficit));
         }
@@ -57,7 +57,7 @@ public class SankeyGraphBuilder
             String id = "expense:" + group.key();
             String expandable = group.key().equals("__other__") ? null : group.key();
             SankeyGraph.TransactionFilter filter = transactionFilter(group.key(), true, -1);
-            nodes.add(new SankeyGraph.Node(id, group.name(), group.amount(), expenseTotal,
+            nodes.add(new SankeyGraph.Node(id, group.name(), group.amount(), available,
                 group.color(), 2, expandable, filter));
             links.add(new SankeyGraph.Link("available", id, group.amount()));
 

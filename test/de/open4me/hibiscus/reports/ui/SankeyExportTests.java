@@ -18,6 +18,7 @@ public final class SankeyExportTests
     public static void run()
     {
         exportsWellFormedSvgWithEscapedText();
+        formatsPercentagesFromNodeBase();
         calculatesSharedLayoutAndPngDimensions();
         normalizesSelectedFileExtension();
     }
@@ -41,6 +42,14 @@ public final class SankeyExportTests
         {
             throw new AssertionError("SVG must be well-formed XML", e);
         }
+    }
+
+    private static void formatsPercentagesFromNodeBase()
+    {
+        SankeyGraph graph = new SankeyGraph(List.of(), List.of(), 1, 3000d, 2000d);
+        SankeyGraph.Node node = new SankeyGraph.Node("expense:housing", "Wohnen", 2000d, 3000d,
+            0xe67e22, 2, null, null);
+        check(SankeyText.detailLine(graph, node).startsWith("66,7%"), "percentage base formatting");
     }
 
     private static void calculatesSharedLayoutAndPngDimensions()
