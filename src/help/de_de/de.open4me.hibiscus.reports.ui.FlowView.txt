@@ -1,0 +1,42 @@
+<form>
+  <p>
+    <span color="header" font="header">Geldfluss</span>
+  </p>
+
+  <p>
+    Diese Auswertung zeigt, aus welchen Quellen die Einnahmen stammen und
+    in welche Ausgabenkategorien die verf&#252;gbaren beziehungsweise
+    ben&#246;tigten Mittel flie&#223;en.
+  </p>
+
+  <p>
+    Der Zeitraum wird mit den Hibiscus-Vorgaben oder taggenau &#252;ber
+    <b>Von</b> und <b>bis</b> gew&#228;hlt. Der Durchschnitt pro Monat
+    bezieht sich auf alle vom Zeitraum ber&#252;hrten Kalendermonate.
+  </p>
+
+  <p>
+    Mit einem Mausklick auf eine Ausgabenkategorie werden deren
+    Unterkategorien ein- oder ausgeklappt. Die Schaltfl&#228;chen unter dem
+    Diagramm vergr&#246;&#223;ern oder verkleinern die Darstellung.
+  </p>
+
+  <p>
+    Ein Rechtsklick auf eine Kategorie &#246;ffnet die passenden Ums&#228;tze
+    im gew&#228;hlten Zeitraum und mit den aktuell einbezogenen Konten.
+    Geb&#252;ndelte &quot;Sonstige&quot;-Bl&#246;cke k&#246;nnen nicht direkt ge&#246;ffnet
+    werden, weil sie mehrere Kategorien zusammenfassen.
+  </p>
+
+  <p>
+    &#220;ber <b>Einstellungen...</b> k&#246;nnen EUR-Konten ausgeschlossen
+    und kleine Fl&#252;sse als &quot;Sonstige&quot; geb&#252;ndelt werden. Kategorien,
+    bei denen in Hibiscus <b>In Auswertungen ignorieren</b> aktiviert ist,
+    werden einschlie&#223;lich ihrer Unterkategorien nicht ber&#252;cksichtigt.
+    Vorgemerkte Ums&#228;tze werden ebenfalls ausgelassen.
+  </p>
+
+  <p>
+    Das Export-Symbol speichert die aktuelle Grafik als PNG oder SVG.
+  </p>
+</form>

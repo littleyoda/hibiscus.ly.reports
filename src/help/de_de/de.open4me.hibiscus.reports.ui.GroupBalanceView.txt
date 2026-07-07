@@ -1,0 +1,44 @@
+<form>
+  <p>
+    <span color="header" font="header">Saldo nach Gruppen</span>
+  </p>
+
+  <p>
+    Diese Auswertung fasst die taggenauen Salden aller EUR-Konten einer
+    Kontogruppe zu einer Linie zusammen. Konten ohne Gruppenzuordnung werden
+    unter <b>Ohne Gruppe</b> dargestellt.
+  </p>
+
+  <p>
+    Bei der Auswahl <b>Alle Gruppen</b> wird zus&#228;tzlich die hervorgehobene
+    Linie <b>Gesamtsumme</b> angezeigt. Mit einem Doppelklick auf einen Eintrag
+    der Legende kann die zugeh&#246;rige Linie ein- oder ausgeblendet werden.
+    Der Tooltip eines Datenpunkts zeigt neben Datum und Summe die einzelnen
+    Kontosalden, aus denen sich der Wert zusammensetzt. Konten mit einem Saldo
+    von 0 EUR werden dort ausgeblendet.
+  </p>
+
+  <p>
+    Die Auswahl &#252;ber <b>Von</b> und <b>bis</b> ist taggenau. Zuk&#252;nftige
+    Zeitr&#228;ume werden nicht prognostiziert; die Darstellung endet am aktuellen
+    Tag. Optional k&#246;nnen inaktive Konten ausgeschlossen werden.
+    Werden inaktive Konten einbezogen, warnt die Auswertung bei deaktivierten
+    Konten, deren Kontosaldo 0 EUR ist, obwohl der letzte gebuchte Umsatz einen
+    davon abweichenden Saldo enth&#228;lt.
+  </p>
+
+  <p>
+    Depots werden &#252;ber den von Hibiscus zur Laufzeit ermittelten
+    Depot-Balance-Provider bewertet. Dieser rekonstruiert den historischen
+    Bestand und bewertet ihn mit den zugeh&#246;rigen Kursen. Fehlt ein solcher
+    Provider oder liefert er keine verwertbaren Daten, wird das Depot mit einer
+    Warnung ausgeschlossen. Abweichungen zum gespeicherten Bankbestand werden
+    gemeldet, die historische Depotreihe bleibt jedoch enthalten.
+  </p>
+
+  <p>
+    &#220;ber <b>Einstellungen...</b> k&#246;nnen Gruppen explizit ausgeschlossen
+    werden. Sie erscheinen dann weder in der Gruppenauswahl noch in der
+    Gesamtsumme.
+  </p>
+</form>

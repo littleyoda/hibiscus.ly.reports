@@ -1,0 +1,38 @@
+<form>
+  <p>
+    <span color="header" font="header">Monats&#252;bersicht</span>
+  </p>
+
+  <p>
+    Diese Auswertung stellt Einnahmen als gr&#252;ne Balken oberhalb und
+    Ausgaben als rote Balken unterhalb der Nulllinie dar. Die gelbe Linie
+    zeigt die Bilanz aus Einnahmen minus Ausgaben.
+  </p>
+
+  <p>
+    Die Gruppierung kann auf <b>Monatlich</b>, <b>Quartalsweise</b> oder
+    <b>J&#228;hrlich</b> gestellt werden. Die Auswahl &#252;ber <b>Von</b> und
+    <b>bis</b> bleibt taggenau; angefangene Randperioden enthalten nur die
+    Buchungen innerhalb des gew&#228;hlten Zeitraums. Perioden ohne Ums&#228;tze
+    bleiben als Nullwerte erhalten.
+  </p>
+
+  <p>
+    Die Tabelle zeigt Einnahmen, Ausgaben und Bilanz als Gesamtsumme und
+    als Durchschnitt pro gew&#228;hltem Intervall. Bei quartalsweiser oder
+    j&#228;hrlicher Gruppierung wird zus&#228;tzlich der Durchschnitt pro Monat
+    angezeigt.
+  </p>
+
+  <p>
+    &#220;ber <b>Einstellungen...</b> werden die Konten unabh&#228;ngig von der
+    Geldfluss-Auswertung ausgew&#228;hlt. Kategorien mit der Hibiscus-Option
+    <b>In Auswertungen ignorieren</b> sowie deren Unterkategorien und
+    vorgemerkte Ums&#228;tze werden nicht ber&#252;cksichtigt.
+  </p>
+
+  <p>
+    Das Export-Symbol speichert Diagramm, Zeitraum und Zusammenfassung als
+    PNG oder SVG.
+  </p>
+</form>
