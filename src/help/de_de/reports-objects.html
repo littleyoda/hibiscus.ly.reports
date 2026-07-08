@@ -1,0 +1,253 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <title>Report-Objekte</title>
+  <style>
+    body {
+      color: #202020;
+      font-family: sans-serif;
+      font-size: 14px;
+      line-height: 1.45;
+      margin: 18px;
+    }
+
+    h1 {
+      font-size: 24px;
+      margin: 0 0 14px;
+    }
+
+    h2 {
+      border-bottom: 1px solid #d0d0d0;
+      font-size: 18px;
+      margin: 28px 0 10px;
+      padding-bottom: 4px;
+    }
+
+    table {
+      border-collapse: collapse;
+      margin: 10px 0 16px;
+      width: 100%;
+    }
+
+    th,
+    td {
+      border: 1px solid #d0d0d0;
+      padding: 6px 8px;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      background: #f0f0f0;
+      font-weight: bold;
+    }
+
+    code {
+      background: #f5f5f5;
+      border: 1px solid #e0e0e0;
+      border-radius: 3px;
+      font-family: monospace;
+      padding: 1px 3px;
+    }
+
+    pre {
+      background: #f7f7f7;
+      border: 1px solid #d8d8d8;
+      overflow-x: auto;
+      padding: 10px;
+    }
+
+    pre code {
+      background: transparent;
+      border: 0;
+      padding: 0;
+    }
+
+    li {
+      margin: 4px 0;
+    }
+  </style>
+</head>
+<body>
+  <h1>Report-Objekte</h1>
+  <p>Diese Hilfe beschreibt die Objekte, die in dynamischen HTML-Reports mit Jinjava verwendet werden koennen.</p>
+
+  <h2>Verfuegbare Top-Level-Objekte</h2>
+  <table>
+    <thead>
+      <tr><th>Objekt</th><th>Bedeutung</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><code>konten</code></td><td>Aktive Konten</td></tr>
+      <tr><td><code>konten.aktive</code></td><td>Aktive Konten</td></tr>
+      <tr><td><code>konten.alle</code></td><td>Alle Konten</td></tr>
+      <tr><td><code>kontogruppen</code></td><td>Gruppen der aktiven Konten</td></tr>
+      <tr><td><code>kontogruppen.aktive</code></td><td>Gruppen der aktiven Konten</td></tr>
+      <tr><td><code>kontogruppen.alle</code></td><td>Gruppen aller Konten</td></tr>
+      <tr><td><code>umsaetze</code></td><td>Umsaetze der letzten 90 Tage</td></tr>
+      <tr><td><code>umsaetze.alle</code></td><td>Alle Umsaetze</td></tr>
+    </tbody>
+  </table>
+  <p>Direkte Iteration ueber <code>konten</code>, <code>kontogruppen</code> oder <code>umsaetze</code> verwendet die Standardauswahl. Bei Konten und Kontogruppen sind das aktive Konten. Bei Umsaetzen sind das die letzten 90 Tage.</p>
+  <pre><code>{% for konto in konten %}
+  {{ konto.name }}: {{ konto.saldo }}
+{% endfor %}</code></pre>
+
+  <h2>Konten</h2>
+  <p>Ein Konto besitzt folgende Felder:</p>
+  <table>
+    <thead>
+      <tr><th>Feld</th><th>Bedeutung</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><code>konto.id</code></td><td>Interne Hibiscus-ID</td></tr>
+      <tr><td><code>konto.name</code></td><td>Anzeigename des Kontos</td></tr>
+      <tr><td><code>konto.blz</code></td><td>Bankleitzahl</td></tr>
+      <tr><td><code>konto.iban</code></td><td>IBAN</td></tr>
+      <tr><td><code>konto.gruppe</code></td><td>Kontogruppe</td></tr>
+      <tr><td><code>konto.saldo</code></td><td>Kontosaldo, auf zwei Nachkommastellen gerundet</td></tr>
+      <tr><td><code>konto.verfuegbar</code></td><td>Verfuegbarer Betrag, auf zwei Nachkommastellen gerundet</td></tr>
+      <tr><td><code>konto.aktualisiert</code></td><td>Datum der letzten Saldo-Aktualisierung</td></tr>
+      <tr><td><code>konto.umsaetze</code></td><td>Umsaetze dieses Kontos</td></tr>
+    </tbody>
+  </table>
+  <p>Beispiel:</p>
+  <pre><code>&lt;table&gt;
+  &lt;tr&gt;
+    &lt;th&gt;Name&lt;/th&gt;
+    &lt;th&gt;Gruppe&lt;/th&gt;
+    &lt;th&gt;Saldo&lt;/th&gt;
+    &lt;th&gt;Verfuegbar&lt;/th&gt;
+    &lt;th&gt;Aktualisiert&lt;/th&gt;
+  &lt;/tr&gt;
+  {% for konto in konten %}
+  &lt;tr&gt;
+    &lt;td&gt;{{ konto.name }}&lt;/td&gt;
+    &lt;td&gt;{{ konto.gruppe }}&lt;/td&gt;
+    &lt;td&gt;{{ konto.saldo }} EUR&lt;/td&gt;
+    &lt;td&gt;{{ konto.verfuegbar }} EUR&lt;/td&gt;
+    &lt;td&gt;{{ konto.aktualisiert }}&lt;/td&gt;
+  &lt;/tr&gt;
+  {% endfor %}
+&lt;/table&gt;</code></pre>
+  <p>Alle Konten, auch inaktive:</p>
+  <pre><code>{% for konto in konten.alle %}
+  {{ konto.name }}
+{% endfor %}</code></pre>
+
+  <h2>Kontogruppen</h2>
+  <p>Kontogruppen werden aus <code>konto.gruppe</code> gebildet. Konten ohne Gruppe werden der Gruppe <code>Ohne Gruppe</code> zugeordnet.</p>
+  <p>Eine Kontogruppe besitzt folgende Felder:</p>
+  <table>
+    <thead>
+      <tr><th>Feld</th><th>Bedeutung</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><code>gruppe.name</code></td><td>Name der Kontogruppe</td></tr>
+      <tr><td><code>gruppe.konten</code></td><td>Konten dieser Gruppe</td></tr>
+      <tr><td><code>gruppe.anzahl</code></td><td>Anzahl der Konten in dieser Gruppe</td></tr>
+      <tr><td><code>gruppe.saldo</code></td><td>Summe der Salden, auf zwei Nachkommastellen gerundet</td></tr>
+      <tr><td><code>gruppe.verfuegbar</code></td><td>Summe der verfuegbaren Betraege, auf zwei Nachkommastellen gerundet</td></tr>
+    </tbody>
+  </table>
+  <p>Beispiel:</p>
+  <pre><code>{% for gruppe in kontogruppen %}
+  &lt;h2&gt;{{ gruppe.name }}&lt;/h2&gt;
+  &lt;p&gt;{{ gruppe.anzahl }} Konten, {{ gruppe.saldo }} EUR&lt;/p&gt;
+
+  &lt;ul&gt;
+    {% for konto in gruppe.konten %}
+      &lt;li&gt;{{ konto.name }}: {{ konto.saldo }} EUR&lt;/li&gt;
+    {% endfor %}
+  &lt;/ul&gt;
+{% endfor %}</code></pre>
+  <p>Gruppen aller Konten:</p>
+  <pre><code>{% for gruppe in kontogruppen.alle %}
+  {{ gruppe.name }}
+{% endfor %}</code></pre>
+
+  <h2>Umsaetze</h2>
+  <p>Der Standardzugriff auf <code>umsaetze</code> ist auf die letzten 90 Tage begrenzt. Fuer grosse Datenbestaende sollte zusaetzlich <code>limit(...)</code> verwendet werden.</p>
+  <pre><code>{% for umsatz in umsaetze.limit(20) %}
+  {{ umsatz.datum }} {{ umsatz.betrag }} {{ umsatz.zweck }}
+{% endfor %}</code></pre>
+  <p>Ein Umsatz besitzt folgende Felder:</p>
+  <table>
+    <thead>
+      <tr><th>Feld</th><th>Bedeutung</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><code>umsatz.datum</code></td><td>Buchungsdatum</td></tr>
+      <tr><td><code>umsatz.valuta</code></td><td>Valutadatum</td></tr>
+      <tr><td><code>umsatz.betrag</code></td><td>Buchungsbetrag</td></tr>
+      <tr><td><code>umsatz.saldo</code></td><td>Kontosaldo nach der Buchung</td></tr>
+      <tr><td><code>umsatz.zweck</code></td><td>Verwendungszweck</td></tr>
+      <tr><td><code>umsatz.zweck2</code></td><td>Zweite Zweckzeile</td></tr>
+      <tr><td><code>umsatz.verwendungszwecke</code></td><td>Weitere Verwendungszwecke als Liste</td></tr>
+      <tr><td><code>umsatz.gegenkontoName</code></td><td>Name des Gegenkontos</td></tr>
+      <tr><td><code>umsatz.gegenkontoNummer</code></td><td>Nummer des Gegenkontos</td></tr>
+      <tr><td><code>umsatz.gegenkontoBlz</code></td><td>BLZ des Gegenkontos</td></tr>
+      <tr><td><code>umsatz.art</code></td><td>Buchungsart</td></tr>
+      <tr><td><code>umsatz.kategorie</code></td><td>Name der zugeordneten Kategorie</td></tr>
+      <tr><td><code>umsatz.kategoriePfad</code></td><td>Kategoriepfad als Liste</td></tr>
+      <tr><td><code>umsatz.vorgemerkt</code></td><td><code>true</code>, wenn der Umsatz vorgemerkt ist</td></tr>
+      <tr><td><code>umsatz.konto</code></td><td>Konto dieses Umsatzes</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Umsatz-Filter</h2>
+  <p>Umsatzlisten koennen begrenzt werden:</p>
+  <table>
+    <thead>
+      <tr><th>Ausdruck</th><th>Bedeutung</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><code>umsaetze</code></td><td>Umsaetze der letzten 90 Tage</td></tr>
+      <tr><td><code>umsaetze.alle</code></td><td>Alle Umsaetze</td></tr>
+      <tr><td><code>umsaetze.limit(100)</code></td><td>Maximal 100 Umsaetze</td></tr>
+      <tr><td><code>umsaetze.letzteTage(30)</code></td><td>Umsaetze der letzten 30 Tage</td></tr>
+      <tr><td><code>umsaetze.zeitraum(&quot;2026-01-01&quot;, &quot;2026-01-31&quot;)</code></td><td>Umsaetze im angegebenen Zeitraum</td></tr>
+    </tbody>
+  </table>
+  <p>Die Filter koennen kombiniert werden:</p>
+  <pre><code>{% for umsatz in umsaetze.letzteTage(30).limit(50) %}
+  {{ umsatz.datum }} {{ umsatz.betrag }} {{ umsatz.zweck }}
+{% endfor %}</code></pre>
+  <p>Kontospezifische Umsaetze:</p>
+  <pre><code>{% for konto in konten %}
+  &lt;h2&gt;{{ konto.name }}&lt;/h2&gt;
+
+  {% for umsatz in konto.umsaetze.limit(10) %}
+    {{ umsatz.datum }} {{ umsatz.betrag }} {{ umsatz.zweck }}
+  {% endfor %}
+{% endfor %}</code></pre>
+
+  <h2>Kategorien</h2>
+  <p><code>umsatz.kategoriePfad</code> enthaelt die Kategorie-Hierarchie. Ein Eintrag besitzt:</p>
+  <table>
+    <thead>
+      <tr><th>Feld</th><th>Bedeutung</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><code>kategorie.id</code></td><td>Interne Hibiscus-ID</td></tr>
+      <tr><td><code>kategorie.name</code></td><td>Name der Kategorie</td></tr>
+      <tr><td><code>kategorie.skipReports</code></td><td><code>true</code>, wenn die Kategorie in Auswertungen ignoriert wird</td></tr>
+      <tr><td><code>kategorie.color</code></td><td>Farbe als RGB-Zahl, falls gesetzt</td></tr>
+    </tbody>
+  </table>
+  <p>Beispiel:</p>
+  <pre><code>{% for umsatz in umsaetze.limit(20) %}
+  {% for kategorie in umsatz.kategoriePfad %}
+    {{ kategorie.name }}{% if not loop.last %} &gt; {% endif %}
+  {% endfor %}
+{% endfor %}</code></pre>
+
+  <h2>Hinweise</h2>
+  <ul>
+    <li>Datumswerte werden im Format <code>YYYY-MM-DD</code> ausgegeben.</li>
+    <li>Geldwerte sind Zahlen. Bei Konten und Kontogruppen sind Saldo und verfuegbarer Betrag bereits auf zwei Nachkommastellen gerundet.</li>
+    <li><code>umsaetze.alle</code> kann bei grossen Hibiscus-Datenbestaenden sehr viele Daten laden. Fuer Reports ist meist ein Zeitraum plus <code>limit(...)</code> sinnvoller.</li>
+  </ul>
+</body>
+</html>

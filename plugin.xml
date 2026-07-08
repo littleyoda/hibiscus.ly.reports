@@ -2,10 +2,11 @@
 <plugin xmlns="http://www.willuhn.de/schema/jameica-plugin"
         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
         xsi:schemaLocation="http://www.willuhn.de/schema/jameica-plugin https://www.willuhn.de/schema/jameica-plugin-1.5.xsd"
-        name="hibiscus.ly.reports" version="0.5.0" class="de.open4me.hibiscus.reports.Plugin">
+        name="hibiscus.ly.reports" version="0.5.1" class="de.open4me.hibiscus.reports.Plugin">
 
   <description>Interaktive Geldfluss- und Perioden-Auswertungen für Hibiscus</description>
   <license>GPL-3.0</license>
+  <url>https://www.open4me.de/hibiscus/hibiscus.ly.reports/hibiscus.ly.reports.zip</url>
 
   <requires jameica="2.11.0+">
     <import plugin="hibiscus" version="2.11.0+" />
@@ -13,10 +14,12 @@
 
   <extensions>
     <extension extends="hibiscus.navi.reporting" class="de.open4me.hibiscus.reports.ui.ReportingNavigationExtension" />
+    <extension extends="hibiscus.navi" class="de.open4me.hibiscus.reports.ui.ReportsNavigationExtension" />
   </extensions>
 
   <classfinder>
     <include>hibiscus\.ly\.reports\.jar</include>
+    <include>lib/.*\.jar</include>
     <include>.*\.class</include>
   </classfinder>
 </plugin>

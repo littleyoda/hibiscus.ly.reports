@@ -3,7 +3,8 @@
 Interaktive Auswertungen für Hibiscus
 
 `hibiscus.ly.reports` erweitert Hibiscus unter **Hibiscus -> Auswertungen** um
-zusätzliche Ansichten für Sankey-Diagramme, Einnahmen, Ausgaben und Kontosalden.
+zusätzliche Ansichten für Sankey-Diagramme, Einnahmen, Ausgaben, Kontosalden
+und eigene HTML-Reports.
 
 ![Geldfluss-Auswertung](img/geldfluss.png)
 
@@ -14,6 +15,8 @@ zusätzliche Ansichten für Sankey-Diagramme, Einnahmen, Ausgaben und Kontosalde
   wahlweise monatlich, quartalsweise oder jährlich gruppiert.
 * **Saldo nach Gruppen**: zeigt die taggenauen Salden von Kontogruppen als
   Linienchart inklusive Gesamtsumme.
+* **Reports**: rendert eigene HTML-Templates mit Konten, Kontogruppen und
+  Umsätzen aus Hibiscus.
 
 # Features
 * Zeitraumsauswahl mit den bekannten Hibiscus-Vorgaben und taggenauen Von-/Bis-
@@ -22,6 +25,7 @@ zusätzliche Ansichten für Sankey-Diagramme, Einnahmen, Ausgaben und Kontosalde
 * Berücksichtigung der Hibiscus-Kategorien inklusive der Option
   **In Auswertungen ignorieren**.
 * Export der Diagramme als PNG oder SVG.
+* Eigene HTML-Reports mit Jinjava-Templates, Tabellen, CSS und JavaScript.
 
 
 ## Plugin über den Update-Manager installieren
@@ -47,6 +51,7 @@ Die Auswertungen befinden sich in Hibiscus unter **Auswertungen**:
 * **Geldfluss**
 * **Monatsübersicht**
 * **Saldo nach Gruppen**
+* **Reports**
 
 Die Ansichten verwenden ausschließlich die in Hibiscus gespeicherten Daten.
 Vorgemerkte Umsätze werden in Geldfluss und Monatsübersicht nicht
@@ -74,6 +79,34 @@ bleiben sichtbar.
 Diese Ansicht fasst Kontosalden nach Hibiscus-Kontogruppen zusammen. Konten
 ohne Gruppenzuordnung erscheinen unter **Ohne Gruppe**. Bei **Alle Gruppen**
 wird zusätzlich die Gesamtsumme angezeigt.
+
+## Reports
+
+Die Reports-Ansicht rendert eigene HTML-Dateien als dynamische Auswertungen.
+Die Dateien liegen im Jameica-Profil unter:
+
+```text
+~/.jameica/hibiscus.ly.reports/reports
+```
+
+Beim ersten Start wird ein Beispielreport angelegt. Weitere Reports können in
+der Ansicht über **Neu** erstellt und anschließend direkt bearbeitet werden.
+Die Vorschau wird im integrierten Browser angezeigt; **Speichern** schreibt das
+Template zurück in den Report-Ordner.
+
+Templates werden mit Jinjava gerendert. Verfügbar sind unter anderem:
+
+* `konten`, `konten.aktive`, `konten.alle`
+* `kontogruppen`, `kontogruppen.aktive`, `kontogruppen.alle`
+* `umsaetze`, `umsaetze.alle`, `umsaetze.limit(...)`,
+  `umsaetze.letzteTage(...)`, `umsaetze.zeitraum(...)`
+
+Die vollständige Beschreibung der Template-Objekte ist in der Reports-Ansicht
+über das Hilfe-Symbol oben rechts verfügbar. Zusätzlich bleibt die
+Repository-Dokumentation in [REPORT_OBJECTS.md](REPORT_OBJECTS.md) erhalten.
+
+Da Reports normales HTML ausgeben, können sie CSS, Tabellen und JavaScript
+verwenden. Externe Bibliotheken wie Chart.js können per CDN eingebunden werden.
 
 
 # Lizenz

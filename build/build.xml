@@ -13,6 +13,9 @@
   <path id="compile.path">
     <pathelement location="${jameica.dir}/bin" />
     <pathelement location="${hibiscus.dir}/bin" />
+    <fileset dir="lib" erroronmissingdir="false">
+      <include name="**/*.jar" />
+    </fileset>
     <fileset dir="${jameica.dir}/lib">
       <include name="swt/**/*.jar" />
       <include name="de_willuhn_ds/*.jar" />
@@ -65,6 +68,11 @@
     <copy file="plugin.xml" todir="${dist.dir}/${plugin.name}" />
     <copy file="LICENSE" todir="${dist.dir}/${plugin.name}" />
     <copy file="README.md" todir="${dist.dir}/${plugin.name}" />
+    <copy todir="${dist.dir}/${plugin.name}/lib" failonerror="false">
+      <fileset dir="lib" erroronmissingdir="false">
+        <include name="**/*.jar" />
+      </fileset>
+    </copy>
   </target>
 
   <target name="zip" depends="jar">

@@ -9,6 +9,7 @@ import de.open4me.hibiscus.reports.ui.AccountBalanceConsistencyTests;
 import de.open4me.hibiscus.reports.ui.DepotBalanceValidationTests;
 import de.open4me.hibiscus.reports.data.HibiscusDataProviderTests;
 import de.open4me.hibiscus.reports.data.BalanceSeriesAggregatorTests;
+import de.open4me.hibiscus.reports.data.DynamicReportTests;
 
 public final class CoreTests
 {
@@ -22,6 +23,7 @@ public final class CoreTests
         PeriodBalanceAggregatorTests.run();
         HibiscusDataProviderTests.run();
         BalanceSeriesAggregatorTests.run();
+        DynamicReportTests.run();
         SankeyGraphBuilderTests.run();
         SankeyExportTests.run();
         OverviewExportTests.run();
