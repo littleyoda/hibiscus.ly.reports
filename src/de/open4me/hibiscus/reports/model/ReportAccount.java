@@ -2,7 +2,7 @@ package de.open4me.hibiscus.reports.model;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 import de.open4me.hibiscus.reports.data.ReportTransactionsProxy;
 
@@ -11,7 +11,7 @@ public final class ReportAccount
     private final String id;
     private final double saldo;
     private final double verfuegbar;
-    private final LocalDate aktualisiert;
+    private final LocalDateTime aktualisiert;
     private final String name;
     private final String blz;
     private final String iban;
@@ -23,7 +23,7 @@ public final class ReportAccount
         this("", saldo, saldo, null, name, blz, iban, gruppe, null);
     }
 
-    public ReportAccount(String id, double saldo, double verfuegbar, LocalDate aktualisiert, String name, String blz,
+    public ReportAccount(String id, double saldo, double verfuegbar, LocalDateTime aktualisiert, String name, String blz,
                          String iban, String gruppe, ReportTransactionsProxy umsaetze)
     {
         this.saldo = money(saldo);
@@ -52,7 +52,7 @@ public final class ReportAccount
         return verfuegbar;
     }
 
-    public LocalDate getAktualisiert()
+    public LocalDateTime getAktualisiert()
     {
         return aktualisiert;
     }

@@ -3,6 +3,7 @@ package de.open4me.hibiscus.reports.data;
 import java.rmi.RemoteException;
 import java.sql.Date;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -181,5 +182,12 @@ public class HibiscusDataProvider
         if (date instanceof java.sql.Date sqlDate)
             return sqlDate.toLocalDate();
         return date.toInstant().atZone(ZoneId.systemDefault()).toLocalDate();
+    }
+
+    static LocalDateTime toLocalDateTime(java.util.Date date)
+    {
+        if (date instanceof java.sql.Date sqlDate)
+            return sqlDate.toLocalDate().atStartOfDay();
+        return date.toInstant().atZone(ZoneId.systemDefault()).toLocalDateTime();
     }
 }

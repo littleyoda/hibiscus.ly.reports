@@ -16,6 +16,8 @@ import de.willuhn.util.ApplicationException;
 
 public class ReportsNavigationExtension implements Extension
 {
+    static final String REPORTS_ROOT_ID = "hibiscus.navi.reports";
+
     @Override
     public void extend(Extendable extendable)
     {
@@ -23,11 +25,11 @@ public class ReportsNavigationExtension implements Extension
             return;
 
         ReportNavigationItem reports = new ReportNavigationItem(parent, "Reports",
-            "hibiscus.navi.reports", "folder.png", "folder-open.png",
+            REPORTS_ROOT_ID, "folder.png", "folder-open.png",
             new OpenDynamicReportsViewAction(), true);
         try
         {
-            addReports(reports);
+            addReportChildren(reports);
             parent.addChild(reports);
         }
         catch (RemoteException e)
@@ -36,7 +38,7 @@ public class ReportsNavigationExtension implements Extension
         }
     }
 
-    private static void addReports(ReportNavigationItem parent)
+    static void addReportChildren(ReportNavigationItem parent)
     {
         try
         {
@@ -44,9 +46,7 @@ public class ReportsNavigationExtension implements Extension
             repository.initialize();
             for (DynamicReport report : repository.listReports())
             {
-                parent.addChild(new ReportNavigationItem(parent, report.displayName(),
-                    "hibiscus.navi.reports.report." + id(report),
-                    "office-chart-area.png", new OpenReportAction(report)));
+                parent.addChild(createReportItem(parent, report));
             }
         }
         catch (IOException e)
@@ -55,7 +55,14 @@ public class ReportsNavigationExtension implements Extension
         }
     }
 
-    private static String id(DynamicReport report)
+    static ReportNavigationItem createReportItem(Item parent, DynamicReport report)
+    {
+        return new ReportNavigationItem(parent, report.displayName(),
+            "hibiscus.navi.reports.report." + id(report),
+            "office-chart-area.png", new OpenReportAction(report));
+    }
+
+    static String id(DynamicReport report)
     {
         String name = report == null ? null : report.displayName();
         String normalized = name == null ? "report" : name.toLowerCase(Locale.ROOT)

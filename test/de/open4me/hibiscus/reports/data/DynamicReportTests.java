@@ -4,6 +4,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -140,7 +141,7 @@ public final class DynamicReportTests
         check(rendered.html().contains("Privat"), "account group rendered");
         check(rendered.html().contains("123.46"), "rounded account balance rendered");
         check(rendered.html().contains("120.12"), "rounded available balance rendered");
-        check(rendered.html().contains("2026-07-08"), "account update date rendered");
+        check(rendered.html().contains("2026-07-08T14:15:16"), "account update date and time rendered");
         check(!rendered.html().contains("Archivkonto"), "inactive account is not rendered by default");
     }
 
@@ -296,17 +297,19 @@ public final class DynamicReportTests
         public List<ReportAccount> loadAccounts(KontoFilter filter)
         {
             if (filter == KontoFilter.ACTIVE)
-                return List.of(new ReportAccount("active", 123.456d, 120.123d, LocalDate.of(2026, 7, 8),
+                return List.of(new ReportAccount("active", 123.456d, 120.123d,
+                        LocalDateTime.of(2026, 7, 8, 14, 15, 16),
                         "Aktives Girokonto", "12345678", "DE001234", "Privat",
                         ReportTransactionsProxy.forAccount(transactionProvider, "active")),
-                    new ReportAccount("daily", 50d, 50d, LocalDate.of(2026, 7, 8), "Aktives Tagesgeld",
+                    new ReportAccount("daily", 50d, 50d, LocalDateTime.of(2026, 7, 8, 14, 20, 0), "Aktives Tagesgeld",
                         "12345678", "DE005678", "Privat",
                         ReportTransactionsProxy.forAccount(transactionProvider, "daily")));
             if (filter == KontoFilter.ALL)
-                return List.of(new ReportAccount("active", 123.456d, 120.123d, LocalDate.of(2026, 7, 8),
+                return List.of(new ReportAccount("active", 123.456d, 120.123d,
+                        LocalDateTime.of(2026, 7, 8, 14, 15, 16),
                         "Aktives Girokonto", "12345678", "DE001234", "Privat",
                         ReportTransactionsProxy.forAccount(transactionProvider, "active")),
-                    new ReportAccount("daily", 50d, 50d, LocalDate.of(2026, 7, 8), "Aktives Tagesgeld",
+                    new ReportAccount("daily", 50d, 50d, LocalDateTime.of(2026, 7, 8, 14, 20, 0), "Aktives Tagesgeld",
                         "12345678", "DE005678", "Privat",
                         ReportTransactionsProxy.forAccount(transactionProvider, "daily")),
                     new ReportAccount("archive", 0d, 0d, null, "Archivkonto", "87654321", "DE009876",
@@ -324,7 +327,7 @@ public final class DynamicReportTests
         {
             queries.add(query);
             ReportAccount account = new ReportAccount(query.accountId() == null ? "active" : query.accountId(),
-                123.456d, 120.123d, LocalDate.of(2026, 7, 8), "Aktives Girokonto", "12345678",
+                123.456d, 120.123d, LocalDateTime.of(2026, 7, 8, 14, 15, 16), "Aktives Girokonto", "12345678",
                 "DE001234", "Privat", null);
             String purpose = query.accountId() == null ? "Globaler Umsatz" : "Kontoumsatz";
             List<ReportTransaction> result = List.of(new ReportTransaction(LocalDate.of(2026, 7, 8),

@@ -1,7 +1,7 @@
 package de.open4me.hibiscus.reports.data;
 
 import java.util.ArrayList;
-import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 
 import de.open4me.hibiscus.reports.model.ReportAccount;
@@ -33,15 +33,15 @@ public final class HibiscusReportAccountProvider implements ReportAccountProvide
             if (name == null || name.isBlank())
                 name = account.getLongName();
             result.add(new ReportAccount(account.getID(), account.getSaldo(), account.getSaldoAvailable(),
-                toLocalDate(account.getSaldoDatum()), name, account.getBLZ(),
+                toLocalDateTime(account.getSaldoDatum()), name, account.getBLZ(),
                 account.getIban(), account.getKategorie(),
                 ReportTransactionsProxy.forAccount(transactionProvider, account.getID())));
         }
         return result;
     }
 
-    private static LocalDate toLocalDate(java.util.Date date)
+    private static LocalDateTime toLocalDateTime(java.util.Date date)
     {
-        return date == null ? null : HibiscusDataProvider.toLocalDate(date);
+        return date == null ? null : HibiscusDataProvider.toLocalDateTime(date);
     }
 }

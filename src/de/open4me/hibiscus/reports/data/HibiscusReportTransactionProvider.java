@@ -3,6 +3,7 @@ package de.open4me.hibiscus.reports.data;
 import java.rmi.RemoteException;
 import java.sql.Date;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -65,7 +66,7 @@ public final class HibiscusReportTransactionProvider implements ReportTransactio
         if (name == null || name.isBlank())
             name = account.getLongName();
         return new ReportAccount(account.getID(), account.getSaldo(), account.getSaldoAvailable(),
-            toLocalDate(account.getSaldoDatum()), name, account.getBLZ(), account.getIban(),
+            toLocalDateTime(account.getSaldoDatum()), name, account.getBLZ(), account.getIban(),
             account.getKategorie(), null);
     }
 
@@ -79,6 +80,11 @@ public final class HibiscusReportTransactionProvider implements ReportTransactio
     private static LocalDate toLocalDate(java.util.Date date)
     {
         return date == null ? null : HibiscusDataProvider.toLocalDate(date);
+    }
+
+    private static LocalDateTime toLocalDateTime(java.util.Date date)
+    {
+        return date == null ? null : HibiscusDataProvider.toLocalDateTime(date);
     }
 
     private static List<CategoryInfo> categoryPath(UmsatzTyp category) throws RemoteException

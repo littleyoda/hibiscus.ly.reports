@@ -43,7 +43,7 @@ Ein Konto besitzt folgende Felder:
 | `konto.gruppe` | Kontogruppe |
 | `konto.saldo` | Kontosaldo, auf zwei Nachkommastellen gerundet |
 | `konto.verfuegbar` | Verfuegbarer Betrag, auf zwei Nachkommastellen gerundet |
-| `konto.aktualisiert` | Datum der letzten Saldo-Aktualisierung |
+| `konto.aktualisiert` | Datum und Uhrzeit der letzten Saldo-Aktualisierung |
 | `konto.umsaetze` | Umsaetze dieses Kontos |
 
 Beispiel:
@@ -201,7 +201,8 @@ Beispiel:
 
 ## Hinweise
 
-- Datumswerte werden im Format `YYYY-MM-DD` ausgegeben.
+- Datumswerte werden im Format `YYYY-MM-DD` ausgegeben. `konto.aktualisiert`
+  enthaelt zusaetzlich die Uhrzeit im Format `YYYY-MM-DDTHH:MM:SS`.
 - Geldwerte sind Zahlen. Bei Konten und Kontogruppen sind Saldo und verfuegbarer
   Betrag bereits auf zwei Nachkommastellen gerundet.
 - `umsaetze.alle` kann bei grossen Hibiscus-Datenbestaenden sehr viele Daten

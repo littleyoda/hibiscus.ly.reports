@@ -366,6 +366,7 @@ public class DynamicReportsView extends AbstractView
             editButton.setText("Schließen");
             createContent();
             loadSelectedReport();
+            ReportsNavigationRefresher.refresh();
             root.layout(true, true);
         }
         catch (OperationCanceledException e)
