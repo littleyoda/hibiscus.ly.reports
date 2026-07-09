@@ -34,7 +34,7 @@ public final class HibiscusReportAccountProvider implements ReportAccountProvide
                 name = account.getLongName();
             result.add(new ReportAccount(account.getID(), account.getSaldo(), account.getSaldoAvailable(),
                 toLocalDateTime(account.getSaldoDatum()), name, account.getBLZ(),
-                account.getIban(), account.getKategorie(),
+                account.getIban(), account.getKategorie(), account.hasFlag(Konto.FLAG_OFFLINE),
                 ReportTransactionsProxy.forAccount(transactionProvider, account.getID())));
         }
         return result;

@@ -129,7 +129,7 @@ public final class DynamicReportTests
         String template = """
             {% extends "layouts/base.html" %}
             {% block body %}
-            {% for konto in konten %}{{ konto.name }} {{ konto.blz }} {{ konto.iban }} {{ konto.gruppe }} {{ konto.saldo }} {{ konto.verfuegbar }} {{ konto.aktualisiert }}{% endfor %}
+            {% for konto in konten %}{{ konto.name }} {{ konto.blz }} {{ konto.iban }} {{ konto.gruppe }} {{ konto.saldo }} {{ konto.verfuegbar }} {{ konto.aktualisiert }} {{ konto.offline }}{% endfor %}
             {% endblock %}
             """;
         DynamicReportRenderer.RenderedReport rendered = renderer.render(template);
@@ -142,6 +142,7 @@ public final class DynamicReportTests
         check(rendered.html().contains("123.46"), "rounded account balance rendered");
         check(rendered.html().contains("120.12"), "rounded available balance rendered");
         check(rendered.html().contains("2026-07-08T14:15:16"), "account update date and time rendered");
+        check(rendered.html().contains("false"), "account offline flag rendered");
         check(!rendered.html().contains("Archivkonto"), "inactive account is not rendered by default");
     }
 
@@ -234,13 +235,13 @@ public final class DynamicReportTests
         Path base = Files.createTempDirectory("hibiscus-reports-unavailable-amounts");
         DynamicReportRenderer renderer = new DynamicReportRenderer(base, filter -> List.of(
             new ReportAccount("nan", Double.NaN, Double.NaN, null, "Konto ohne Betrag", "", "", "",
-                null)));
+                false, null)));
 
         DynamicReportRenderer.RenderedReport rendered = renderer.render(
-            "{% for konto in konten %}{{ konto.name }}={{ konto.saldo }}={{ konto.verfuegbar }}={{ konto.aktualisiert }}{% endfor %}");
+            "{% for konto in konten %}{{ konto.name }}={{ konto.saldo }}={{ konto.verfuegbar }}={{ konto.aktualisiert }}={{ konto.offline }}{% endfor %}");
 
         check(rendered.errors().isEmpty(), "unavailable amount render errors");
-        checkEquals("Konto ohne Betrag=0.0=0.0=", rendered.html(), "unavailable amount fallback");
+        checkEquals("Konto ohne Betrag=0.0=0.0==false", rendered.html(), "unavailable amount fallback");
     }
 
     private static void write(Path path, String text) throws Exception
@@ -300,20 +301,20 @@ public final class DynamicReportTests
                 return List.of(new ReportAccount("active", 123.456d, 120.123d,
                         LocalDateTime.of(2026, 7, 8, 14, 15, 16),
                         "Aktives Girokonto", "12345678", "DE001234", "Privat",
-                        ReportTransactionsProxy.forAccount(transactionProvider, "active")),
+                        false, ReportTransactionsProxy.forAccount(transactionProvider, "active")),
                     new ReportAccount("daily", 50d, 50d, LocalDateTime.of(2026, 7, 8, 14, 20, 0), "Aktives Tagesgeld",
                         "12345678", "DE005678", "Privat",
-                        ReportTransactionsProxy.forAccount(transactionProvider, "daily")));
+                        false, ReportTransactionsProxy.forAccount(transactionProvider, "daily")));
             if (filter == KontoFilter.ALL)
                 return List.of(new ReportAccount("active", 123.456d, 120.123d,
                         LocalDateTime.of(2026, 7, 8, 14, 15, 16),
                         "Aktives Girokonto", "12345678", "DE001234", "Privat",
-                        ReportTransactionsProxy.forAccount(transactionProvider, "active")),
+                        false, ReportTransactionsProxy.forAccount(transactionProvider, "active")),
                     new ReportAccount("daily", 50d, 50d, LocalDateTime.of(2026, 7, 8, 14, 20, 0), "Aktives Tagesgeld",
                         "12345678", "DE005678", "Privat",
-                        ReportTransactionsProxy.forAccount(transactionProvider, "daily")),
+                        false, ReportTransactionsProxy.forAccount(transactionProvider, "daily")),
                     new ReportAccount("archive", 0d, 0d, null, "Archivkonto", "87654321", "DE009876",
-                        "Archiv", ReportTransactionsProxy.forAccount(transactionProvider, "archive")));
+                        "Archiv", true, ReportTransactionsProxy.forAccount(transactionProvider, "archive")));
             throw new AssertionError("unexpected account filter: " + filter);
         }
     }
@@ -328,7 +329,7 @@ public final class DynamicReportTests
             queries.add(query);
             ReportAccount account = new ReportAccount(query.accountId() == null ? "active" : query.accountId(),
                 123.456d, 120.123d, LocalDateTime.of(2026, 7, 8, 14, 15, 16), "Aktives Girokonto", "12345678",
-                "DE001234", "Privat", null);
+                "DE001234", "Privat", false, null);
             String purpose = query.accountId() == null ? "Globaler Umsatz" : "Kontoumsatz";
             List<ReportTransaction> result = List.of(new ReportTransaction(LocalDate.of(2026, 7, 8),
                 LocalDate.of(2026, 7, 8), 12.34d, 123.45d, purpose, "", List.of(), "Gegenkonto",

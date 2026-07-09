@@ -145,6 +145,11 @@ final class ReportNavigationItem implements NavigationItem
             children.add(item);
     }
 
+    List<Item> children()
+    {
+        return List.copyOf(children);
+    }
+
     @Override
     public boolean isEnabled()
     {

@@ -2,7 +2,10 @@ package de.open4me.hibiscus.reports.ui;
 
 import java.io.IOException;
 import java.rmi.RemoteException;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 import de.open4me.hibiscus.reports.data.DynamicReportRepository;
 import de.open4me.hibiscus.reports.model.DynamicReport;
@@ -44,10 +47,7 @@ public class ReportsNavigationExtension implements Extension
         {
             DynamicReportRepository repository = DynamicReportRepository.jameica();
             repository.initialize();
-            for (DynamicReport report : repository.listReports())
-            {
-                parent.addChild(createReportItem(parent, report));
-            }
+            addReportChildren(parent, repository.listReports());
         }
         catch (IOException e)
         {
@@ -55,9 +55,64 @@ public class ReportsNavigationExtension implements Extension
         }
     }
 
+    static void addReportChildren(ReportNavigationItem parent, List<DynamicReport> reports)
+    {
+        Map<String, ReportNavigationItem> folders = new LinkedHashMap<>();
+        for (DynamicReport report : reports)
+            addReport(parent, folders, report);
+    }
+
+    private static void addReport(ReportNavigationItem root, Map<String, ReportNavigationItem> folders,
+                                  DynamicReport report)
+    {
+        String[] segments = segments(report);
+        ReportNavigationItem parent = root;
+        StringBuilder path = new StringBuilder();
+        for (int i = 0; i < segments.length - 1; i++)
+        {
+            if (path.length() > 0)
+                path.append('/');
+            path.append(segments[i]);
+            String key = path.toString();
+            ReportNavigationItem folder = folders.get(key);
+            if (folder == null)
+            {
+                folder = createFolderItem(parent, segments[i], key);
+                folders.put(key, folder);
+                parent.addChild(folder);
+            }
+            parent = folder;
+        }
+        parent.addChild(createReportItem(parent, report, segments[segments.length - 1]));
+    }
+
+    private static String[] segments(DynamicReport report)
+    {
+        String name = report == null ? "" : report.displayName();
+        String[] raw = name == null ? new String[0] : name.replace('\\', '/').split("/");
+        String[] segments = java.util.Arrays.stream(raw)
+            .filter(segment -> segment != null && !segment.isBlank())
+            .toArray(String[]::new);
+        if (segments.length == 0)
+            return new String[] { "report" };
+        return segments;
+    }
+
+    private static ReportNavigationItem createFolderItem(Item parent, String name, String path)
+    {
+        return new ReportNavigationItem(parent, name,
+            "hibiscus.navi.reports.folder." + id(path),
+            "folder.png", "folder-open.png", null, true);
+    }
+
     static ReportNavigationItem createReportItem(Item parent, DynamicReport report)
     {
-        return new ReportNavigationItem(parent, report.displayName(),
+        return createReportItem(parent, report, report.displayName());
+    }
+
+    private static ReportNavigationItem createReportItem(Item parent, DynamicReport report, String name)
+    {
+        return new ReportNavigationItem(parent, name,
             "hibiscus.navi.reports.report." + id(report),
             "office-chart-area.png", new OpenReportAction(report));
     }
@@ -74,6 +129,18 @@ public class ReportsNavigationExtension implements Extension
             normalized = "report";
         String source = report == null || report.path() == null ? normalized : report.path().toString();
         return normalized + "-" + Integer.toHexString(source.hashCode());
+    }
+
+    private static String id(String value)
+    {
+        String normalized = value == null ? "folder" : value.toLowerCase(Locale.ROOT)
+            .replace('\\', '-').replace('/', '-')
+            .replaceAll("[^a-z0-9._-]+", "-")
+            .replaceAll("-+", "-")
+            .replaceAll("^-|-$", "");
+        if (normalized.isBlank())
+            normalized = "folder";
+        return normalized + "-" + Integer.toHexString((value == null ? normalized : value).hashCode());
     }
 
     private static final class OpenReportAction implements Action

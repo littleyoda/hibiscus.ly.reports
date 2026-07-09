@@ -7,6 +7,7 @@ import de.open4me.hibiscus.reports.ui.GroupExclusionSettingsTests;
 import de.open4me.hibiscus.reports.ui.BalanceSeriesDetailsTests;
 import de.open4me.hibiscus.reports.ui.AccountBalanceConsistencyTests;
 import de.open4me.hibiscus.reports.ui.DepotBalanceValidationTests;
+import de.open4me.hibiscus.reports.ui.ReportsNavigationExtensionTests;
 import de.open4me.hibiscus.reports.data.HibiscusDataProviderTests;
 import de.open4me.hibiscus.reports.data.BalanceSeriesAggregatorTests;
 import de.open4me.hibiscus.reports.data.DynamicReportTests;
@@ -32,6 +33,7 @@ public final class CoreTests
         BalanceSeriesDetailsTests.run();
         AccountBalanceConsistencyTests.run();
         DepotBalanceValidationTests.run();
+        ReportsNavigationExtensionTests.run();
         HelpResourceTests.run();
         System.out.println("All hibiscus.ly.reports tests passed");
     }

@@ -119,6 +119,7 @@ public final class DynamicReportRepository
                 <th>BLZ</th>
                 <th>IBAN</th>
                 <th>Aktualisiert</th>
+                <th>Offline</th>
                 <th class="number">Saldo</th>
                 <th class="number">Verfügbar</th>
               </tr>
@@ -131,6 +132,7 @@ public final class DynamicReportRepository
                 <td>{{ konto.blz }}</td>
                 <td>{{ konto.iban }}</td>
                 <td>{{ konto.aktualisiert }}</td>
+                <td>{% if konto.offline %}ja{% else %}nein{% endif %}</td>
                 <td class="number">{{ konto.saldo }} EUR</td>
                 <td class="number">{{ konto.verfuegbar }} EUR</td>
               </tr>
@@ -145,6 +147,7 @@ public final class DynamicReportRepository
               <tr>
                 <th>Name</th>
                 <th>Gruppe</th>
+                <th>Offline</th>
                 <th class="number">Saldo</th>
                 <th class="number">Verfuegbar</th>
               </tr>
@@ -154,6 +157,7 @@ public final class DynamicReportRepository
               <tr>
                 <td>{{ konto.name }}</td>
                 <td>{{ konto.gruppe }}</td>
+                <td>{% if konto.offline %}ja{% else %}nein{% endif %}</td>
                 <td class="number">{{ konto.saldo }} EUR</td>
                 <td class="number">{{ konto.verfuegbar }} EUR</td>
               </tr>

@@ -109,6 +109,7 @@
       <tr><td><code>konto.saldo</code></td><td>Kontosaldo, auf zwei Nachkommastellen gerundet</td></tr>
       <tr><td><code>konto.verfuegbar</code></td><td>Verfuegbarer Betrag, auf zwei Nachkommastellen gerundet</td></tr>
       <tr><td><code>konto.aktualisiert</code></td><td>Datum und Uhrzeit der letzten Saldo-Aktualisierung</td></tr>
+      <tr><td><code>konto.offline</code></td><td><code>true</code>, wenn es ein Hibiscus-Offline-Konto ist</td></tr>
       <tr><td><code>konto.umsaetze</code></td><td>Umsaetze dieses Kontos</td></tr>
     </tbody>
   </table>
@@ -120,6 +121,7 @@
     &lt;th&gt;Saldo&lt;/th&gt;
     &lt;th&gt;Verfuegbar&lt;/th&gt;
     &lt;th&gt;Aktualisiert&lt;/th&gt;
+    &lt;th&gt;Offline&lt;/th&gt;
   &lt;/tr&gt;
   {% for konto in konten %}
   &lt;tr&gt;
@@ -128,6 +130,7 @@
     &lt;td&gt;{{ konto.saldo }} EUR&lt;/td&gt;
     &lt;td&gt;{{ konto.verfuegbar }} EUR&lt;/td&gt;
     &lt;td&gt;{{ konto.aktualisiert }}&lt;/td&gt;
+    &lt;td&gt;{% if konto.offline %}ja{% else %}nein{% endif %}&lt;/td&gt;
   &lt;/tr&gt;
   {% endfor %}
 &lt;/table&gt;</code></pre>

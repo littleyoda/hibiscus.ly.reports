@@ -67,7 +67,7 @@ public final class HibiscusReportTransactionProvider implements ReportTransactio
             name = account.getLongName();
         return new ReportAccount(account.getID(), account.getSaldo(), account.getSaldoAvailable(),
             toLocalDateTime(account.getSaldoDatum()), name, account.getBLZ(), account.getIban(),
-            account.getKategorie(), null);
+            account.getKategorie(), account.hasFlag(Konto.FLAG_OFFLINE), null);
     }
 
     private static List<String> list(String[] values)

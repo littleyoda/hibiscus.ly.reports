@@ -47,8 +47,7 @@ final class ReportsNavigationRefresher
                 new OpenDynamicReportsViewAction(), oldRoot.isExpanded());
             DynamicReportRepository repository = DynamicReportRepository.jameica();
             repository.initialize();
-            for (DynamicReport report : repository.listReports())
-                root.addChild(ReportsNavigationExtension.createReportItem(root, report));
+            ReportsNavigationExtension.addReportChildren(root, repository.listReports());
 
             removeChildren(reportsTreeItem, itemLookup);
             reportsTreeItem.setData(NAVIGATION_DATA_KEY, root);
@@ -56,8 +55,7 @@ final class ReportsNavigationRefresher
             reportsTreeItem.setImage(reportsTreeItem.getExpanded() ? root.getIconOpen() : root.getIconClose());
             itemLookup.put(root.getID(), reportsTreeItem);
 
-            for (TreeItem child : createReportChildren(reportsTreeItem, root, itemLookup))
-                child.setExpanded(false);
+            createChildren(reportsTreeItem, root, itemLookup);
 
             Tree tree = reportsTreeItem.getParent();
             if (tree != null && !tree.isDisposed())
@@ -77,29 +75,45 @@ final class ReportsNavigationRefresher
         return (Map<String, TreeItem>) field.get(navigation);
     }
 
-    private static TreeItem[] createReportChildren(TreeItem parent, ReportNavigationItem root,
-                                                   Map<String, TreeItem> itemLookup) throws Exception
+    private static void createChildren(TreeItem parent, NavigationItem navigationItem,
+                                       Map<String, TreeItem> itemLookup) throws Exception
     {
-        de.willuhn.datasource.GenericIterator children = root.getChildren();
-        TreeItem[] created = new TreeItem[children == null ? 0 : children.size()];
-        int index = 0;
+        if (navigationItem instanceof ReportNavigationItem reportNavigationItem)
+        {
+            for (Item child : reportNavigationItem.children())
+                createChild(parent, (NavigationItem) child, itemLookup);
+            return;
+        }
+
+        de.willuhn.datasource.GenericIterator children = navigationItem.getChildren();
         while (children != null && children.hasNext())
         {
-            NavigationItem item = (NavigationItem) children.next();
-            TreeItem treeItem = new TreeItem(parent, org.eclipse.swt.SWT.NONE);
-            treeItem.setFont(Font.DEFAULT.getSWTFont());
-            treeItem.setData(NAVIGATION_DATA_KEY, item);
-            treeItem.setText(item.getName() == null ? "" : item.getName());
-            treeItem.setImage(item.getIconClose());
-            if (!item.isEnabled())
-            {
-                treeItem.setGrayed(true);
-                treeItem.setForeground(Color.COMMENT.getSWTColor());
-            }
-            itemLookup.put(item.getID(), treeItem);
-            created[index++] = treeItem;
+            createChild(parent, (NavigationItem) children.next(), itemLookup);
         }
-        return created;
+    }
+
+    private static void createChild(TreeItem parent, NavigationItem item, Map<String, TreeItem> itemLookup)
+        throws Exception
+    {
+        TreeItem treeItem = new TreeItem(parent, org.eclipse.swt.SWT.NONE);
+        initialize(treeItem, item, itemLookup);
+        createChildren(treeItem, item, itemLookup);
+    }
+
+    private static void initialize(TreeItem treeItem, NavigationItem item, Map<String, TreeItem> itemLookup)
+        throws Exception
+    {
+        treeItem.setFont(Font.DEFAULT.getSWTFont());
+        treeItem.setData(NAVIGATION_DATA_KEY, item);
+        treeItem.setText(item.getName() == null ? "" : item.getName());
+        treeItem.setExpanded(item.isExpanded());
+        treeItem.setImage(treeItem.getExpanded() ? item.getIconOpen() : item.getIconClose());
+        if (!item.isEnabled())
+        {
+            treeItem.setGrayed(true);
+            treeItem.setForeground(Color.COMMENT.getSWTColor());
+        }
+        itemLookup.put(item.getID(), treeItem);
     }
 
     private static void removeChildren(TreeItem parent, Map<String, TreeItem> itemLookup)
