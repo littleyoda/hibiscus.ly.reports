@@ -4,7 +4,7 @@ Diese Datei beschreibt die Objekte, die in dynamischen HTML-Reports mit
 [Jinjava](https://github.com/HubSpot/jinjava) verwendet werden koennen.
 
 Jinjava ist eine Java-Implementierung, die einen Teil der Template-Befehle von
-[Jinja](https://jinja.palletsprojects.com/en/stable/) unterstuetzt. Die Reports
+[Jinja](https://jinja.palletsprojects.com/en/stable/templates/) unterstuetzt. Die Reports
 nutzen diese Template-Syntax fuer Schleifen, Bedingungen, Variablen und Filter.
 
 ## Verfuegbare Top-Level-Objekte
