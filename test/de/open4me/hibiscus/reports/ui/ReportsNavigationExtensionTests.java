@@ -33,17 +33,19 @@ public final class ReportsNavigationExtensionTests
             new OpenDynamicReportsViewAction(), true);
 
         ReportsNavigationExtension.addReportChildren(root, List.of(
+            report("zebra"),
+            report("steuer/2026/salden"),
+            report("steuer/2026/details"),
             report("foo"),
             report("steuer/2025/archiv"),
-            report("steuer/2026/details"),
-            report("steuer/2026/salden")));
+            report("alpha")));
 
         List<NavigationItem> rootChildren = children(root);
-        checkEquals(List.of("foo", "steuer"), names(rootChildren), "root children");
+        checkEquals(List.of("alpha", "foo", "steuer", "zebra"), names(rootChildren), "root children");
         check(rootChildren.get(0).getAction() != null, "root report has action");
-        check(rootChildren.get(1).getAction() == null, "folder has no action");
+        check(rootChildren.get(2).getAction() == null, "folder has no action");
 
-        List<NavigationItem> steuerChildren = children(rootChildren.get(1));
+        List<NavigationItem> steuerChildren = children(rootChildren.get(2));
         checkEquals(List.of("2025", "2026"), names(steuerChildren), "steuer children");
 
         List<NavigationItem> year2025 = children(steuerChildren.get(0));

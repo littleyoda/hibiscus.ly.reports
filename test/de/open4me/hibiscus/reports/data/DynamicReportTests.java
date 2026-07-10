@@ -8,6 +8,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
+import de.open4me.hibiscus.reports.model.CategoryInfo;
 import de.open4me.hibiscus.reports.model.DynamicReport;
 import de.open4me.hibiscus.reports.model.ReportAccount;
 import de.open4me.hibiscus.reports.model.ReportTransaction;
@@ -33,6 +34,7 @@ public final class DynamicReportTests
             rendersExplicitActiveAndAllAccountProxyLists();
             rendersAccountGroups();
             rendersGlobalAndAccountTransactions();
+            rendersCategoryInfoProperties();
             rendersExampleReportWithTransactions();
             rendersAccountsWithUnavailableAmounts();
         }
@@ -227,7 +229,29 @@ public final class DynamicReportTests
         check(rendered.html().contains("Kontogruppen"), "account groups section");
         check(rendered.html().contains("Globaler Umsatz"), "example global transaction");
         check(rendered.html().contains("Kontoumsatz"), "example account transaction");
+        check(rendered.html().contains("45 Lebenshaltung"), "example category root");
+        check(rendered.html().contains("Food"), "example category leaf");
         check(rendered.html().contains("Archivkonto"), "all accounts section");
+    }
+
+    private static void rendersCategoryInfoProperties() throws Exception
+    {
+        Path base = Files.createTempDirectory("hibiscus-reports-category-properties");
+        FakeTransactionProvider transactionProvider = new FakeTransactionProvider();
+        DynamicReportRenderer renderer = new DynamicReportRenderer(base, new FakeAccountProvider(transactionProvider),
+            transactionProvider);
+
+        DynamicReportRenderer.RenderedReport rendered = renderer.render("""
+            {% for umsatz in umsaetze.limit(1) %}
+            {% for kategorie in umsatz.kategoriePfad %}
+            {{ kategorie.id }}:{{ kategorie.name }}:{{ kategorie.skipReports }}:{{ kategorie.color }};
+            {% endfor %}
+            {% endfor %}
+            """);
+
+        check(rendered.errors().isEmpty(), "category info render errors");
+        check(rendered.html().contains("41:45 Lebenshaltung:false:"), "category root properties");
+        check(rendered.html().contains("13:Food:false:1193046;"), "category leaf properties");
     }
 
     private static void rendersAccountsWithUnavailableAmounts() throws Exception
@@ -331,9 +355,11 @@ public final class DynamicReportTests
                 123.456d, 120.123d, LocalDateTime.of(2026, 7, 8, 14, 15, 16), "Aktives Girokonto", "12345678",
                 "DE001234", "Privat", false, null);
             String purpose = query.accountId() == null ? "Globaler Umsatz" : "Kontoumsatz";
+            List<CategoryInfo> categoryPath = List.of(new CategoryInfo("41", "45 Lebenshaltung", false, null),
+                new CategoryInfo("13", "Food", false, 0x123456));
             List<ReportTransaction> result = List.of(new ReportTransaction(LocalDate.of(2026, 7, 8),
                 LocalDate.of(2026, 7, 8), 12.34d, 123.45d, purpose, "", List.of(), "Gegenkonto",
-                "111", "222", "Überweisung", "Kategorie", List.of(), false, account));
+                "111", "222", "Überweisung", "Food", categoryPath, false, account));
             if (query.limit() != null)
                 return result.stream().limit(query.limit()).toList();
             return result;

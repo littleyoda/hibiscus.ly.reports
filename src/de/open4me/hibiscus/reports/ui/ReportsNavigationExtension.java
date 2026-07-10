@@ -2,6 +2,8 @@ package de.open4me.hibiscus.reports.ui;
 
 import java.io.IOException;
 import java.rmi.RemoteException;
+import java.text.Collator;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -20,6 +22,8 @@ import de.willuhn.util.ApplicationException;
 public class ReportsNavigationExtension implements Extension
 {
     static final String REPORTS_ROOT_ID = "hibiscus.navi.reports";
+    private static final Collator COLLATOR = Collator.getInstance(Locale.GERMANY);
+    private static final Comparator<Item> ITEM_NAME_ORDER = ReportsNavigationExtension::compareItemsByName;
 
     @Override
     public void extend(Extendable extendable)
@@ -60,6 +64,7 @@ public class ReportsNavigationExtension implements Extension
         Map<String, ReportNavigationItem> folders = new LinkedHashMap<>();
         for (DynamicReport report : reports)
             addReport(parent, folders, report);
+        sortRecursively(parent);
     }
 
     private static void addReport(ReportNavigationItem root, Map<String, ReportNavigationItem> folders,
@@ -103,6 +108,43 @@ public class ReportsNavigationExtension implements Extension
         return new ReportNavigationItem(parent, name,
             "hibiscus.navi.reports.folder." + id(path),
             "folder.png", "folder-open.png", null, true);
+    }
+
+    private static void sortRecursively(ReportNavigationItem item)
+    {
+        for (Item child : item.children())
+        {
+            if (child instanceof ReportNavigationItem reportNavigationItem)
+                sortRecursively(reportNavigationItem);
+        }
+        item.sortChildren(ITEM_NAME_ORDER);
+    }
+
+    private static int compareItemsByName(Item left, Item right)
+    {
+        try
+        {
+            int result = COLLATOR.compare(name(left), name(right));
+            if (result != 0)
+                return result;
+            return id(left).compareTo(id(right));
+        }
+        catch (RemoteException e)
+        {
+            throw new IllegalStateException("Reports-Navigation konnte nicht sortiert werden", e);
+        }
+    }
+
+    private static String name(Item item) throws RemoteException
+    {
+        String name = item == null ? null : item.getName();
+        return name == null ? "" : name;
+    }
+
+    private static String id(Item item) throws RemoteException
+    {
+        String id = item == null ? null : item.getID();
+        return id == null ? "" : id;
     }
 
     static ReportNavigationItem createReportItem(Item parent, DynamicReport report)

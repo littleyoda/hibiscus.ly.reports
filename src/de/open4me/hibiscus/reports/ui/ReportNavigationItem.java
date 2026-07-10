@@ -2,6 +2,7 @@ package de.open4me.hibiscus.reports.ui;
 
 import java.rmi.RemoteException;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 
 import org.eclipse.swt.graphics.Image;
@@ -148,6 +149,11 @@ final class ReportNavigationItem implements NavigationItem
     List<Item> children()
     {
         return List.copyOf(children);
+    }
+
+    void sortChildren(Comparator<Item> comparator)
+    {
+        children.sort(comparator);
     }
 
     @Override

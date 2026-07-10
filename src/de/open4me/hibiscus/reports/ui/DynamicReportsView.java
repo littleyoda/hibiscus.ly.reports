@@ -180,7 +180,9 @@ public class DynamicReportsView extends AbstractView
     {
         try
         {
-            reports = repository.listReports();
+            reports = repository.listReports().stream()
+                .sorted(java.util.Comparator.comparing(DynamicReport::displayName, String.CASE_INSENSITIVE_ORDER))
+                .toList();
             reportCombo.removeAll();
             for (DynamicReport report : reports)
                 reportCombo.add(report.displayName());
