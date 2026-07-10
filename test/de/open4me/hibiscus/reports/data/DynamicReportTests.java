@@ -7,11 +7,15 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
+import de.open4me.hibiscus.reports.api.ReportTemplateContext;
 import de.open4me.hibiscus.reports.model.CategoryInfo;
 import de.open4me.hibiscus.reports.model.DynamicReport;
 import de.open4me.hibiscus.reports.model.ReportAccount;
 import de.open4me.hibiscus.reports.model.ReportTransaction;
+import de.willuhn.jameica.gui.extension.Extension;
+import de.willuhn.jameica.gui.extension.ExtensionRegistry;
 import de.willuhn.jameica.hbci.gui.filter.KontoFilter;
 
 public final class DynamicReportTests
@@ -35,6 +39,8 @@ public final class DynamicReportTests
             rendersAccountGroups();
             rendersGlobalAndAccountTransactions();
             rendersCategoryInfoProperties();
+            rendersObjectsFromTemplateContextExtension();
+            reportsTemplateContextExtensionErrors();
             rendersExampleReportWithTransactions();
             rendersAccountsWithUnavailableAmounts();
         }
@@ -254,6 +260,37 @@ public final class DynamicReportTests
         check(rendered.html().contains("13:Food:false:1193046;"), "category leaf properties");
     }
 
+    private static void rendersObjectsFromTemplateContextExtension() throws Exception
+    {
+        Path base = Files.createTempDirectory("hibiscus-reports-template-context-extension");
+        Extension extension = extendable -> ((ReportTemplateContext) extendable)
+            .put("extern", Map.of("name", "Depotviewer"));
+        withContextExtension(extension, () -> {
+            DynamicReportRenderer renderer = new DynamicReportRenderer(base, new FakeAccountProvider());
+            DynamicReportRenderer.RenderedReport rendered = renderer.render(
+                "{{ extern.name }} {% for konto in konten %}{{ konto.name }}{% endfor %}");
+
+            check(rendered.errors().isEmpty(), "context extension render errors");
+            check(rendered.html().contains("Depotviewer Aktives Girokonto"), "external object rendered");
+        });
+    }
+
+    private static void reportsTemplateContextExtensionErrors() throws Exception
+    {
+        Path base = Files.createTempDirectory("hibiscus-reports-template-context-extension-error");
+        Extension extension = extendable -> {
+            throw new IllegalStateException("Provider defekt");
+        };
+        withContextExtension(extension, () -> {
+            DynamicReportRenderer renderer = new DynamicReportRenderer(base, new FakeAccountProvider());
+            DynamicReportRenderer.RenderedReport rendered = renderer.render("OK");
+
+            check(rendered.html().contains("OK"), "template still rendered");
+            check(rendered.errors().stream().anyMatch(error -> error.contains("Provider defekt")),
+                "context extension error reported");
+        });
+    }
+
     private static void rendersAccountsWithUnavailableAmounts() throws Exception
     {
         Path base = Files.createTempDirectory("hibiscus-reports-unavailable-amounts");
@@ -285,6 +322,21 @@ public final class DynamicReportTests
             return;
         }
         throw new AssertionError("expected IOException: " + message);
+    }
+
+    private static void withContextExtension(Extension extension, ThrowingRunnable runnable) throws Exception
+    {
+        ExtensionRegistry.register(extension, ReportTemplateContext.EXTENDABLE_ID);
+        try
+        {
+            runnable.run();
+        }
+        finally
+        {
+            List<Extension> extensions = ExtensionRegistry.getExtensions(ReportTemplateContext.EXTENDABLE_ID);
+            if (extensions != null)
+                extensions.remove(extension);
+        }
     }
 
     private interface ThrowingRunnable

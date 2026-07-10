@@ -202,6 +202,70 @@ Beispiel:
 {% endfor %}
 ```
 
+## Depotviewer
+
+Wenn das Plugin `hibiscus.depotviewer` installiert ist, steht der Namespace
+`depotviewer` zur Verfuegung.
+
+Alle Depotviewer-Listen sind Proxy-Listen. Sie koennen direkt iteriert werden
+und bieten einheitlich `size()`, `isEmpty()`, `asList()` und `limit(...)`.
+
+`depotviewer.depots` iteriert ueber aktive Depots. Mit
+`depotviewer.depots.alle` koennen alle Depots inklusive deaktivierter Depots
+geladen werden.
+
+```jinja
+{% for depot in depotviewer.depots %}
+  <h2>{{ depot.name }}</h2>
+  <p>{{ depot.kontonummer }} {{ depot.iban }}</p>
+
+  <h3>Bestand</h3>
+  {% for bestand in depot.bestand.limit(20) %}
+    {{ bestand.wertpapier.name }}:
+    {{ bestand.anzahl }} Stueck,
+    {{ bestand.wert }} {{ bestand.wertwaehrung }}
+  {% endfor %}
+
+  <h3>Bestand am Stichtag</h3>
+  {% for bestand in depot.bestand.am("2026-06-30") %}
+    {{ bestand.wertpapier.name }}:
+    {{ bestand.wert }} {{ bestand.wertwaehrung }}
+  {% endfor %}
+
+  <h3>Orderbuch</h3>
+  {% for order in depot.orderbuch.letzteTage(30).limit(10) %}
+    {{ order.buchungsdatum }} {{ order.aktion }}
+    {{ order.anzahl }} {{ order.wertpapier.name }}
+  {% endfor %}
+{% endfor %}
+```
+
+`depotviewer.wertpapiere` enthaelt Wertpapiere mit aktuellem Bestand.
+`depotviewer.wertpapiere.alle` enthaelt alle Wertpapiere aus der Stammliste.
+
+```jinja
+{% for wertpapier in depotviewer.wertpapiere.limit(20) %}
+  {% set kurs = wertpapier.kurs("2026-01-31") %}
+  {{ wertpapier.name }}:
+  {% if kurs %}
+    {{ kurs.wert }} {{ kurs.waehrung }} am {{ kurs.datum }}
+  {% endif %}
+{% endfor %}
+```
+
+Zeitreihen unterstuetzen zusaetzlich `zeitraum("YYYY-MM-DD", "YYYY-MM-DD")`
+und `letzteTage(...)`.
+
+```jinja
+{% for order in depotviewer.orderbuch.zeitraum("2026-01-01", "2026-01-31").limit(50) %}
+  {{ order.buchungsdatum }} {{ order.wertpapier.name }} {{ order.aktion }}
+{% endfor %}
+
+{% for kurs in wertpapier.kurse.letzteTage(365).limit(10) %}
+  {{ kurs.datum }} {{ kurs.wert }} {{ kurs.waehrung }}
+{% endfor %}
+```
+
 ## Hinweise
 
 - Datumswerte werden im Format `YYYY-MM-DD` ausgegeben. `konto.aktualisiert`

@@ -2,7 +2,7 @@
 <plugin xmlns="http://www.willuhn.de/schema/jameica-plugin"
         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
         xsi:schemaLocation="http://www.willuhn.de/schema/jameica-plugin https://www.willuhn.de/schema/jameica-plugin-1.5.xsd"
-        name="hibiscus.ly.reports" version="0.7.3" class="de.open4me.hibiscus.reports.Plugin">
+        name="hibiscus.ly.reports" version="0.7.4" class="de.open4me.hibiscus.reports.Plugin">
 
   <description>Interaktive Geldfluss- und Perioden-Auswertungen und Report-Generator für Hibiscus</description>
   <license>GPL-3.0</license>

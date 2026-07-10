@@ -246,6 +246,50 @@
   {% endfor %}
 {% endfor %}</code></pre>
 
+  <h2>Depotviewer</h2>
+  <p>Wenn das Plugin <code>hibiscus.depotviewer</code> installiert ist, steht der Namespace <code>depotviewer</code> zur Verfuegung.</p>
+  <p>Alle Depotviewer-Listen sind Proxy-Listen. Sie koennen direkt iteriert werden und bieten einheitlich <code>size()</code>, <code>isEmpty()</code>, <code>asList()</code> und <code>limit(...)</code>.</p>
+  <p><code>depotviewer.depots</code> iteriert ueber aktive Depots. Mit <code>depotviewer.depots.alle</code> koennen alle Depots inklusive deaktivierter Depots geladen werden.</p>
+  <pre><code>{% for depot in depotviewer.depots %}
+  &lt;h2&gt;{{ depot.name }}&lt;/h2&gt;
+  &lt;p&gt;{{ depot.kontonummer }} {{ depot.iban }}&lt;/p&gt;
+
+  &lt;h3&gt;Bestand&lt;/h3&gt;
+  {% for bestand in depot.bestand.limit(20) %}
+    {{ bestand.wertpapier.name }}:
+    {{ bestand.anzahl }} Stueck,
+    {{ bestand.wert }} {{ bestand.wertwaehrung }}
+  {% endfor %}
+
+  &lt;h3&gt;Bestand am Stichtag&lt;/h3&gt;
+  {% for bestand in depot.bestand.am("2026-06-30") %}
+    {{ bestand.wertpapier.name }}:
+    {{ bestand.wert }} {{ bestand.wertwaehrung }}
+  {% endfor %}
+
+  &lt;h3&gt;Orderbuch&lt;/h3&gt;
+  {% for order in depot.orderbuch.letzteTage(30).limit(10) %}
+    {{ order.buchungsdatum }} {{ order.aktion }}
+    {{ order.anzahl }} {{ order.wertpapier.name }}
+  {% endfor %}
+{% endfor %}</code></pre>
+  <p><code>depotviewer.wertpapiere</code> enthaelt Wertpapiere mit aktuellem Bestand. <code>depotviewer.wertpapiere.alle</code> enthaelt alle Wertpapiere aus der Stammliste.</p>
+  <pre><code>{% for wertpapier in depotviewer.wertpapiere.limit(20) %}
+  {% set kurs = wertpapier.kurs("2026-01-31") %}
+  {{ wertpapier.name }}:
+  {% if kurs %}
+    {{ kurs.wert }} {{ kurs.waehrung }} am {{ kurs.datum }}
+  {% endif %}
+{% endfor %}</code></pre>
+  <p>Zeitreihen unterstuetzen zusaetzlich <code>zeitraum("YYYY-MM-DD", "YYYY-MM-DD")</code> und <code>letzteTage(...)</code>.</p>
+  <pre><code>{% for order in depotviewer.orderbuch.zeitraum("2026-01-01", "2026-01-31").limit(50) %}
+  {{ order.buchungsdatum }} {{ order.wertpapier.name }} {{ order.aktion }}
+{% endfor %}
+
+{% for kurs in wertpapier.kurse.letzteTage(365).limit(10) %}
+  {{ kurs.datum }} {{ kurs.wert }} {{ kurs.waehrung }}
+{% endfor %}</code></pre>
+
   <h2>Hinweise</h2>
   <ul>
     <li>Datumswerte werden im Format <code>YYYY-MM-DD</code> ausgegeben.</li>
