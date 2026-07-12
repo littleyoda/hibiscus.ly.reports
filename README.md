@@ -134,11 +134,6 @@ Header `Authorization: Bearer <token>` enthalten. Der Token kann im Dialog neu
 erzeugt werden. Endpoint und Token koennen im Dialog per Button in die
 Zwischenablage kopiert werden.
 
-Der Token wird in der normalen Jameica-Konfiguration im Benutzerprofil
-gespeichert: Klasse `de.open4me.hibiscus.reports.mcp.McpSettings`, Attribut
-`token`. Diese Speicherung ist nicht verschluesselt; der Schutz besteht aus
-lokalem Binding, Opt-in-Aktivierung und Token-Pflicht.
-
 Beispiel:
 
 ```text

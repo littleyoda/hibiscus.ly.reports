@@ -3,12 +3,16 @@ package de.open4me.hibiscus.reports.mcp;
 import java.security.SecureRandom;
 import java.util.Base64;
 
+import de.willuhn.jameica.security.Wallet;
+import de.willuhn.jameica.security.crypto.AESEngine;
 import de.willuhn.jameica.system.Settings;
 
 public final class McpSettings
 {
     public static final int DEFAULT_PORT = 37653;
 
+    private static final String LEGACY_TOKEN = "token";
+    private static final String WALLET_TOKEN = "mcp.token";
     private static final Settings SETTINGS = new Settings(McpSettings.class);
     private static final SecureRandom RANDOM = new SecureRandom();
 
@@ -49,7 +53,25 @@ public final class McpSettings
 
     public static String getToken()
     {
-        return SETTINGS.getString("token", "");
+        try
+        {
+            String token = (String) wallet().get(WALLET_TOKEN);
+            if (token != null && !token.isBlank())
+                return token;
+
+            String legacy = SETTINGS.getString(LEGACY_TOKEN, "");
+            if (legacy != null && !legacy.isBlank())
+            {
+                setToken(legacy);
+                clearLegacyToken();
+                return legacy;
+            }
+            return "";
+        }
+        catch (Exception e)
+        {
+            throw new IllegalStateException("MCP-Token konnte nicht aus dem Jameica-Wallet gelesen werden.", e);
+        }
     }
 
     public static String ensureToken()
@@ -58,7 +80,7 @@ public final class McpSettings
         if (token == null || token.isBlank())
         {
             token = generateToken();
-            SETTINGS.setAttribute("token", token);
+            setToken(token);
         }
         return token;
     }
@@ -71,8 +93,31 @@ public final class McpSettings
     public static String regenerateToken()
     {
         String token = generateToken();
-        SETTINGS.setAttribute("token", token);
+        setToken(token);
+        clearLegacyToken();
         return token;
+    }
+
+    private static void setToken(String token)
+    {
+        try
+        {
+            wallet().set(WALLET_TOKEN, token);
+        }
+        catch (Exception e)
+        {
+            throw new IllegalStateException("MCP-Token konnte nicht im Jameica-Wallet gespeichert werden.", e);
+        }
+    }
+
+    private static void clearLegacyToken()
+    {
+        SETTINGS.setAttribute(LEGACY_TOKEN, "");
+    }
+
+    private static Wallet wallet() throws Exception
+    {
+        return new Wallet(McpSettings.class, new AESEngine());
     }
 
     private static boolean validPort(int port)
