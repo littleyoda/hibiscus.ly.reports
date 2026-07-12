@@ -100,6 +100,13 @@ der Ansicht über **Neu** erstellt und anschließend direkt bearbeitet werden.
 Die Vorschau wird im integrierten Browser angezeigt; **Speichern** schreibt das
 Template zurück in den Report-Ordner.
 
+Jeder Report steht zusätzlich als Element für die Jameica-Startseite zur
+Verfügung. Über **Startseite anpassen** können einzelne Reports im Dialog
+**Auswahl der anzuzeigenden Elemente** aktiviert, sortiert und in der Höhe
+angepasst werden. Die Einträge erscheinen dort als **Reports: <Reportname>**.
+Neue Reports werden nach dem Anlegen automatisch in dieser Auswahl angeboten.
+Reports in Unterverzeichnissen behalten ihren Pfad im Anzeigenamen.
+
 Templates werden mit Jinjava gerendert. Verfügbar sind unter anderem:
 
 * `konten`, `konten.aktive`, `konten.alle`
