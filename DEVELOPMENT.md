@@ -75,6 +75,52 @@ public class ExampleReportTemplateExtension implements Extension
 Fehler in einer Extension werden vom Renderer abgefangen und als Report-Fehler
 angezeigt. Der Render-Vorgang laeuft mit den uebrigen Template-Objekten weiter.
 
+## MCP-Zugriff
+
+Der lokale MCP-Server des Report-Plugins erzeugt seinen Datenkontext ueber
+dieselbe `ReportTemplateContext`-Extension wie der HTML-Renderer. Objekte aus
+anderen Plugins sind dadurch automatisch auch fuer MCP-Clients sichtbar, ohne
+dass das Report-Plugin diese Plugins direkt kennen muss.
+
+Der MCP-Zugriff ist standardmaessig lesend. Fuer fremde Plugin-Objekte ist
+`hibiscus_template_render` der generische Zugriffspfad: Der MCP-Client kann
+einen Jinjava-Ausdruck gegen den aktuellen Template-Kontext rendern. Fuer die
+Hibiscus-Standardobjekte gibt es zusaetzlich strukturierte Tools fuer Konten,
+Kontogruppen und Umsaetze.
+
+Ueberweisungen anlegen muss im MCP-Dialog separat aktiviert werden. Aktuell
+nutzt nur `hibiscus_sepa_transfer_create` diese Freigabe. Das Tool legt lokale
+SEPA-Ueberweisungsentwuerfe an und fuehrt keine Bankkommunikation aus.
+
+Andere Plugins koennen optional eigene strukturierte MCP-Tools bereitstellen.
+Der Extension-Punkt lautet:
+
+```text
+hibiscus.ly.reports.mcp.tools
+```
+
+Das Extendable-Objekt besitzt die Methode `register(Object provider)`. Damit
+andere Plugins unabhaengig bleiben koennen, ist der Provider bewusst duck-typed:
+
+| Methode | Bedeutung |
+| --- | --- |
+| `getNamespace()` | Liefert den Tool-Namespace, z. B. `depotviewer` |
+| `getTools()` | Liefert Tool-Definitionen als `List<Map<String,Object>>` |
+| `call(String localToolName, Map<String,Object> arguments)` | Fuehrt ein Tool aus |
+
+Toolnamen werden vom MCP-Server als `<namespace>_<name>` veroeffentlicht. Ein
+Depotviewer-Tool mit lokalem Namen `depots_list` erscheint also als
+`depotviewer_depots_list`.
+
+Provider sollten nur serialisierbare Werte zurueckgeben: `Map`, `List`,
+`String`, `Number`, `Boolean`, `Date`, `LocalDate`, `LocalDateTime` oder
+`null`. Interne Datenbankobjekte sollten nicht zurueckgegeben werden.
+
+Proxy-Objekte sollten deshalb weiterhin eine endusernahe API anbieten und keine
+internen Datenbankobjekte durchreichen. Methoden wie `aktive`, `alle`, `limit`,
+`letzteTage` und `zeitraum` bleiben die bevorzugte Form fuer begrenzbare
+Listen.
+
 ## API-Gestaltung fuer Template-Objekte
 
 Template-Objekte sollten nicht die interne Datenstruktur eines Plugins

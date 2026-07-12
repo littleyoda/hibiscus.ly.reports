@@ -17,6 +17,12 @@
     <extension extends="hibiscus.navi" class="de.open4me.hibiscus.reports.ui.ReportsNavigationExtension" />
   </extensions>
 
+  <menu>
+    <item id="hibiscus.ly.reports.menu" name="Reports">
+      <item id="hibiscus.ly.reports.mcp-settings" name="MCP-Server..." action="de.open4me.hibiscus.reports.ui.McpSettingsAction" />
+    </item>
+  </menu>
+
   <classfinder>
     <include>hibiscus\.ly\.reports\.jar</include>
     <include>lib/.*\.jar</include>

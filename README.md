@@ -114,7 +114,60 @@ Repository-Dokumentation in [REPORT_OBJECTS.md](REPORT_OBJECTS.md) erhalten.
 Da Reports normales HTML ausgeben, können sie CSS, Tabellen und JavaScript
 verwenden. Externe Bibliotheken wie Chart.js können per CDN eingebunden werden.
 
-      
+## MCP-Server
+
+Das Plugin kann die Report-Template-Objekte auch ueber einen lokalen
+MCP-Server bereitstellen. Der Server ist standardmaessig deaktiviert und
+muss bewusst aktiviert werden. Ohne weitere Freigabe ist der Zugriff lesend.
+
+Aktivierung:
+
+* Menue **Reports -> MCP-Server...** oeffnen.
+* **MCP-Server aktivieren** einschalten.
+* Optional **Ueberweisungen anlegen** einschalten, wenn lokale
+  SEPA-Ueberweisungsentwuerfe per MCP angelegt werden sollen.
+* Port pruefen oder anpassen.
+* Den angezeigten Endpoint und Bearer-Token in den MCP-Client eintragen.
+
+Der Server bindet ausschliesslich an `127.0.0.1`. Jeder Request muss den
+Header `Authorization: Bearer <token>` enthalten. Der Token kann im Dialog neu
+erzeugt werden. Endpoint und Token koennen im Dialog per Button in die
+Zwischenablage kopiert werden.
+
+Der Token wird in der normalen Jameica-Konfiguration im Benutzerprofil
+gespeichert: Klasse `de.open4me.hibiscus.reports.mcp.McpSettings`, Attribut
+`token`. Diese Speicherung ist nicht verschluesselt; der Schutz besteht aus
+lokalem Binding, Opt-in-Aktivierung und Token-Pflicht.
+
+Beispiel:
+
+```text
+Endpoint: http://127.0.0.1:37653/mcp
+Header:   Authorization: Bearer <token>
+```
+
+Verfuegbare Tools:
+
+* `hibiscus_template_objects_list`: Top-Level-Objekte des Template-Kontexts
+* `hibiscus_template_render`: Jinjava-Template-String gegen aktuelle Daten rendern
+* `hibiscus_accounts_list`: aktive oder alle Konten auflisten
+* `hibiscus_account_groups_list`: aktive oder alle Kontogruppen auflisten
+* `hibiscus_transactions_list`: Umsaetze mit Zeitraum, Konto und Limit laden
+* `hibiscus_sepa_transfer_create`: lokalen SEPA-Ueberweisungsentwurf anlegen
+
+Objekte, die andere Plugins per `hibiscus.ly.reports.template.context`
+bereitstellen, sind im MCP-Kontext ebenfalls verfuegbar. Das Report-Plugin
+muss diese Plugins dafuer nicht direkt kennen.
+
+`hibiscus_sepa_transfer_create` sendet keine Zahlung an die Bank. Es speichert
+nur einen lokalen Entwurf in Hibiscus. Der Auftrag muss anschliessend in
+Hibiscus geprueft und manuell ausgefuehrt werden. Das Tool funktioniert nur,
+wenn im MCP-Dialog **Ueberweisungen anlegen** aktiviert wurde.
+
+Plugins koennen zusaetzlich eigene strukturierte MCP-Tools registrieren. Wenn
+zum Beispiel der Depotviewer installiert ist, koennen dadurch Tools wie
+`depotviewer_depots_list`, `depotviewer_portfolio_list` oder
+`depotviewer_orders_list` in Codex erscheinen.
 
 
 

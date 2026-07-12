@@ -16,16 +16,23 @@ public final class ReportAccount
     private final String blz;
     private final String iban;
     private final String gruppe;
+    private final boolean aktiv;
     private final boolean offline;
     private final ReportTransactionsProxy umsaetze;
 
     public ReportAccount(double saldo, String name, String blz, String iban, String gruppe)
     {
-        this("", saldo, saldo, null, name, blz, iban, gruppe, false, null);
+        this("", saldo, saldo, null, name, blz, iban, gruppe, true, false, null);
     }
 
     public ReportAccount(String id, double saldo, double verfuegbar, LocalDateTime aktualisiert, String name, String blz,
                          String iban, String gruppe, boolean offline, ReportTransactionsProxy umsaetze)
+    {
+        this(id, saldo, verfuegbar, aktualisiert, name, blz, iban, gruppe, true, offline, umsaetze);
+    }
+
+    public ReportAccount(String id, double saldo, double verfuegbar, LocalDateTime aktualisiert, String name, String blz,
+                         String iban, String gruppe, boolean aktiv, boolean offline, ReportTransactionsProxy umsaetze)
     {
         this.saldo = money(saldo);
         this.verfuegbar = money(verfuegbar);
@@ -35,6 +42,7 @@ public final class ReportAccount
         this.blz = text(blz);
         this.iban = text(iban);
         this.gruppe = text(gruppe);
+        this.aktiv = aktiv;
         this.offline = offline;
         this.umsaetze = umsaetze;
     }
@@ -77,6 +85,11 @@ public final class ReportAccount
     public String getGruppe()
     {
         return gruppe;
+    }
+
+    public boolean getAktiv()
+    {
+        return aktiv;
     }
 
     public boolean getOffline()

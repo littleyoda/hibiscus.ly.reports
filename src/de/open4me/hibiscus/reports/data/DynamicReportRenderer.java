@@ -2,23 +2,18 @@ package de.open4me.hibiscus.reports.data;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 
 import com.hubspot.jinjava.Jinjava;
 import com.hubspot.jinjava.interpret.RenderResult;
 import com.hubspot.jinjava.interpret.TemplateError;
 
 import de.open4me.hibiscus.reports.api.ReportTemplateContext;
-import de.willuhn.jameica.gui.extension.Extension;
-import de.willuhn.jameica.gui.extension.ExtensionRegistry;
 
 public final class DynamicReportRenderer
 {
     private final Path baseDirectory;
-    private final ReportAccountProvider accountProvider;
-    private final ReportTransactionProvider transactionProvider;
+    private final ReportTemplateContextFactory contextFactory;
 
     public DynamicReportRenderer(Path baseDirectory, ReportAccountProvider accountProvider)
     {
@@ -29,19 +24,17 @@ public final class DynamicReportRenderer
                                  ReportTransactionProvider transactionProvider)
     {
         this.baseDirectory = baseDirectory;
-        this.accountProvider = accountProvider;
-        this.transactionProvider = transactionProvider;
+        this.contextFactory = new ReportTemplateContextFactory(accountProvider, transactionProvider);
     }
 
     public RenderedReport render(String template)
     {
         Jinjava jinjava = new Jinjava();
         jinjava.setResourceLocator(new JameicaReportResourceLoader(baseDirectory));
-        ReportAccountsProxy accounts = new ReportAccountsProxy(accountProvider);
         try
         {
             List<String> errors = new ArrayList<>();
-            ReportTemplateContext context = createContext(accounts, errors);
+            ReportTemplateContext context = contextFactory.create(errors);
             RenderResult result = jinjava.renderForResult(template, context.objects());
             errors.addAll(result.getErrors().stream().map(DynamicReportRenderer::format).toList());
             return new RenderedReport(result.getOutput(), errors);
@@ -50,32 +43,6 @@ public final class DynamicReportRenderer
         {
             return new RenderedReport("", List.of("Report konnte nicht gerendert werden: " + detail(e)));
         }
-    }
-
-    private ReportTemplateContext createContext(ReportAccountsProxy accounts, List<String> errors)
-    {
-        Map<String, Object> objects = new LinkedHashMap<>();
-        objects.put("konten", accounts);
-        objects.put("kontogruppen", new ReportAccountGroupsProxy(accounts));
-        objects.put("umsaetze", new ReportTransactionsProxy(transactionProvider));
-
-        ReportTemplateContext context = new ReportTemplateContext(objects);
-        List<Extension> extensions = ExtensionRegistry.getExtensions(context.getExtendableID());
-        if (extensions == null || extensions.isEmpty())
-            return context;
-
-        for (Extension extension : extensions)
-        {
-            try
-            {
-                extension.extend(context);
-            }
-            catch (Throwable e)
-            {
-                errors.add("Template-Objekte konnten nicht geladen werden: " + detail(e));
-            }
-        }
-        return context;
     }
 
     private static String format(TemplateError error)

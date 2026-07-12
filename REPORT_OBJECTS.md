@@ -44,6 +44,7 @@ Ein Konto besitzt folgende Felder:
 | `konto.saldo` | Kontosaldo, auf zwei Nachkommastellen gerundet |
 | `konto.verfuegbar` | Verfuegbarer Betrag, auf zwei Nachkommastellen gerundet |
 | `konto.aktualisiert` | Datum und Uhrzeit der letzten Saldo-Aktualisierung |
+| `konto.aktiv` | `true`, wenn das Konto in Hibiscus nicht deaktiviert ist |
 | `konto.offline` | `true`, wenn es ein Hibiscus-Offline-Konto ist |
 | `konto.umsaetze` | Umsaetze dieses Kontos |
 

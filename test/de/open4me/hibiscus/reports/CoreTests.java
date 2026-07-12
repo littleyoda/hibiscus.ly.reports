@@ -11,6 +11,7 @@ import de.open4me.hibiscus.reports.ui.ReportsNavigationExtensionTests;
 import de.open4me.hibiscus.reports.data.HibiscusDataProviderTests;
 import de.open4me.hibiscus.reports.data.BalanceSeriesAggregatorTests;
 import de.open4me.hibiscus.reports.data.DynamicReportTests;
+import de.open4me.hibiscus.reports.mcp.McpJsonRpcHandlerTests;
 
 public final class CoreTests
 {
@@ -25,6 +26,7 @@ public final class CoreTests
         HibiscusDataProviderTests.run();
         BalanceSeriesAggregatorTests.run();
         DynamicReportTests.run();
+        McpJsonRpcHandlerTests.run();
         SankeyGraphBuilderTests.run();
         SankeyExportTests.run();
         OverviewExportTests.run();

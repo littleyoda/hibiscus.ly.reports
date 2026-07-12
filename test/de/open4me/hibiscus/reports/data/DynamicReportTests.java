@@ -137,7 +137,7 @@ public final class DynamicReportTests
         String template = """
             {% extends "layouts/base.html" %}
             {% block body %}
-            {% for konto in konten %}{{ konto.name }} {{ konto.blz }} {{ konto.iban }} {{ konto.gruppe }} {{ konto.saldo }} {{ konto.verfuegbar }} {{ konto.aktualisiert }} {{ konto.offline }}{% endfor %}
+            {% for konto in konten %}{{ konto.name }} {{ konto.blz }} {{ konto.iban }} {{ konto.gruppe }} {{ konto.saldo }} {{ konto.verfuegbar }} {{ konto.aktualisiert }} {{ konto.aktiv }} {{ konto.offline }}{% endfor %}
             {% endblock %}
             """;
         DynamicReportRenderer.RenderedReport rendered = renderer.render(template);
@@ -150,6 +150,7 @@ public final class DynamicReportTests
         check(rendered.html().contains("123.46"), "rounded account balance rendered");
         check(rendered.html().contains("120.12"), "rounded available balance rendered");
         check(rendered.html().contains("2026-07-08T14:15:16"), "account update date and time rendered");
+        check(rendered.html().contains("true false"), "account active flag rendered");
         check(rendered.html().contains("false"), "account offline flag rendered");
         check(!rendered.html().contains("Archivkonto"), "inactive account is not rendered by default");
     }
