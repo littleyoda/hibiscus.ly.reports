@@ -3,6 +3,7 @@ package de.open4me.hibiscus.reports;
 import de.open4me.hibiscus.reports.ui.SankeyExportTests;
 import de.open4me.hibiscus.reports.ui.OverviewExportTests;
 import de.open4me.hibiscus.reports.ui.AccountSelectionSettingsTests;
+import de.open4me.hibiscus.reports.ui.McpSettingsActionTests;
 import de.open4me.hibiscus.reports.ui.GroupExclusionSettingsTests;
 import de.open4me.hibiscus.reports.ui.BalanceSeriesDetailsTests;
 import de.open4me.hibiscus.reports.ui.AccountBalanceConsistencyTests;
@@ -12,6 +13,7 @@ import de.open4me.hibiscus.reports.data.HibiscusDataProviderTests;
 import de.open4me.hibiscus.reports.data.BalanceSeriesAggregatorTests;
 import de.open4me.hibiscus.reports.data.DynamicReportTests;
 import de.open4me.hibiscus.reports.mcp.McpJsonRpcHandlerTests;
+import de.open4me.hibiscus.reports.mcp.McpNetworkSettingsTests;
 
 public final class CoreTests
 {
@@ -26,10 +28,12 @@ public final class CoreTests
         HibiscusDataProviderTests.run();
         BalanceSeriesAggregatorTests.run();
         DynamicReportTests.run();
+        McpNetworkSettingsTests.run();
         McpJsonRpcHandlerTests.run();
         SankeyGraphBuilderTests.run();
         SankeyExportTests.run();
         OverviewExportTests.run();
+        McpSettingsActionTests.run();
         AccountSelectionSettingsTests.run();
         GroupExclusionSettingsTests.run();
         BalanceSeriesDetailsTests.run();

@@ -63,7 +63,8 @@ public final class McpServerManager
         HibiscusReportTransactionProvider transactions = new HibiscusReportTransactionProvider();
         ReportTemplateContextFactory contextFactory = new ReportTemplateContextFactory(
             new HibiscusReportAccountProvider(transactions), transactions);
-        server = new McpHttpServer(McpSettings.getPort(), token, new McpJsonRpcHandler(contextFactory, transactions));
+        server = new McpHttpServer(McpSettings.getPort(), McpSettings.bindAddress(),
+            McpSettings.isLocalNetworkEnabled(), token, new McpJsonRpcHandler(contextFactory, transactions));
         server.start();
         Logger.info("reports MCP server started at " + McpSettings.endpoint());
     }

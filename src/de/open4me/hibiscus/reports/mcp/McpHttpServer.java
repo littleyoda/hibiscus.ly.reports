@@ -2,7 +2,9 @@ package de.open4me.hibiscus.reports.mcp;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.net.BindException;
 import java.net.InetSocketAddress;
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
@@ -14,29 +16,47 @@ import com.sun.net.httpserver.HttpServer;
 final class McpHttpServer
 {
     private final int port;
+    private final String bindAddress;
+    private final boolean allowPrivateNetworkOrigins;
     private final String token;
     private final McpJsonRpcHandler handler;
     private HttpServer server;
     private ExecutorService executor;
 
-    McpHttpServer(int port, String token, McpJsonRpcHandler handler)
+    McpHttpServer(int port, String bindAddress, boolean allowPrivateNetworkOrigins, String token,
+                  McpJsonRpcHandler handler)
     {
         this.port = port;
+        this.bindAddress = bindAddress;
+        this.allowPrivateNetworkOrigins = allowPrivateNetworkOrigins;
         this.token = token;
         this.handler = handler;
     }
 
     void start() throws IOException
     {
-        server = HttpServer.create(new InetSocketAddress("127.0.0.1", port), 0);
-        executor = Executors.newCachedThreadPool(runnable -> {
-            Thread thread = new Thread(runnable, "hibiscus-reports-mcp");
-            thread.setDaemon(true);
-            return thread;
-        });
-        server.setExecutor(executor);
-        server.createContext("/mcp", this::handle);
-        server.start();
+        try
+        {
+            server = HttpServer.create(new InetSocketAddress(bindAddress, port), 0);
+            executor = Executors.newCachedThreadPool(runnable -> {
+                Thread thread = new Thread(runnable, "hibiscus-reports-mcp");
+                thread.setDaemon(true);
+                return thread;
+            });
+            server.setExecutor(executor);
+            server.createContext("/mcp", this::handle);
+            server.start();
+        }
+        catch (BindException e)
+        {
+            stop();
+            throw portInUse(e);
+        }
+        catch (IOException | RuntimeException e)
+        {
+            stop();
+            throw e;
+        }
     }
 
     void stop()
@@ -56,7 +76,7 @@ final class McpHttpServer
     {
         try
         {
-            if (!originAllowed(exchange.getRequestHeaders().get("Origin")))
+            if (!originAllowed(exchange.getRequestHeaders().get("Origin"), allowPrivateNetworkOrigins))
             {
                 send(exchange, 403, "text/plain", "Forbidden");
                 return;
@@ -94,7 +114,7 @@ final class McpHttpServer
         return values.stream().anyMatch(value -> ("Bearer " + token).equals(value));
     }
 
-    private static boolean originAllowed(List<String> origins)
+    static boolean originAllowed(List<String> origins, boolean allowPrivateNetworkOrigins)
     {
         if (origins == null || origins.isEmpty())
             return true;
@@ -102,10 +122,57 @@ final class McpHttpServer
         {
             if (origin == null || origin.isBlank())
                 continue;
-            if (!(origin.startsWith("http://127.0.0.1:") || origin.startsWith("http://localhost:")))
+            if (!originAllowed(origin, allowPrivateNetworkOrigins))
                 return false;
         }
         return true;
+    }
+
+    private static boolean originAllowed(String origin, boolean allowPrivateNetworkOrigins)
+    {
+        String host;
+        try
+        {
+            host = URI.create(origin).getHost();
+        }
+        catch (IllegalArgumentException e)
+        {
+            return false;
+        }
+        if (host == null || host.isBlank())
+            return false;
+        if (isLoopbackHost(host))
+            return true;
+        return allowPrivateNetworkOrigins && isPrivateIpv4(host);
+    }
+
+    private static boolean isLoopbackHost(String host)
+    {
+        return "localhost".equalsIgnoreCase(host) || "127.0.0.1".equals(host) || "::1".equals(host);
+    }
+
+    private static boolean isPrivateIpv4(String host)
+    {
+        String[] parts = host.split("\\.");
+        if (parts.length != 4)
+            return false;
+        int[] octets = new int[4];
+        for (int i = 0; i < parts.length; i++)
+        {
+            try
+            {
+                octets[i] = Integer.parseInt(parts[i]);
+            }
+            catch (NumberFormatException e)
+            {
+                return false;
+            }
+            if (octets[i] < 0 || octets[i] > 255)
+                return false;
+        }
+        return octets[0] == 10
+            || (octets[0] == 172 && octets[1] >= 16 && octets[1] <= 31)
+            || (octets[0] == 192 && octets[1] == 168);
     }
 
     private static void send(HttpExchange exchange, int status, String contentType, String body) throws IOException
@@ -117,5 +184,14 @@ final class McpHttpServer
         {
             output.write(bytes);
         }
+    }
+
+    private IOException portInUse(BindException cause)
+    {
+        String hint = "0.0.0.0".equals(bindAddress)
+            ? " Bei aktiviertem LAN-Zugriff blockiert auch ein Dienst auf 127.0.0.1:" + port + " diesen Port."
+            : "";
+        return new IOException("MCP-Port " + port + " ist auf " + bindAddress + " bereits belegt." + hint
+            + " Bitte einen anderen Port waehlen oder Hibiscus neu starten.", cause);
     }
 }

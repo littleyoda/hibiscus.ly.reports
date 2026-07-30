@@ -133,13 +133,22 @@ Aktivierung:
 * **MCP-Server aktivieren** einschalten.
 * Optional **Ueberweisungen anlegen** einschalten, wenn lokale
   SEPA-Ueberweisungsentwuerfe per MCP angelegt werden sollen.
+* Optional **Zugriff aus lokalem Netzwerk erlauben** einschalten, wenn der
+  MCP-Server von anderen Geraeten im lokalen Netz erreichbar sein soll.
 * Port pruefen oder anpassen.
 * Den angezeigten Endpoint und Bearer-Token in den MCP-Client eintragen.
 
-Der Server bindet ausschliesslich an `127.0.0.1`. Jeder Request muss den
-Header `Authorization: Bearer <token>` enthalten. Der Token kann im Dialog neu
-erzeugt werden. Endpoint und Token koennen im Dialog per Button in die
-Zwischenablage kopiert werden.
+Der Server bindet standardmaessig ausschliesslich an `127.0.0.1`. Mit der
+LAN-Option bindet er an `0.0.0.0`; Clients im lokalen Netz muessen dann die
+IP-Adresse oder den Hostnamen des Hibiscus-Rechners verwenden. Jeder Request
+muss den Header `Authorization: Bearer <token>` enthalten. Der Token kann im
+Dialog neu erzeugt werden. Endpoint und Token koennen im Dialog per Button in
+die Zwischenablage kopiert werden.
+
+Wenn der MCP-Server bereits laeuft, wird ein Wechsel der LAN-Option erst nach
+einem Neustart von Hibiscus aktiv. Dadurch wird vermieden, dass der laufende
+Listener im Betrieb zwischen `127.0.0.1` und `0.0.0.0` neu gebunden werden
+muss.
 
 Beispiel:
 

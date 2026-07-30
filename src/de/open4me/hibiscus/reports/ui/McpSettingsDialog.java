@@ -33,13 +33,15 @@ final class McpSettingsDialog extends AbstractDialog<McpSettingsDialog.Result>
 
     private final CheckboxInput enabled;
     private final CheckboxInput writeEnabled;
+    private final CheckboxInput localNetworkEnabled;
     private final TextInput port;
     private final CheckboxInput regenerateToken;
     private Text endpoint;
     private Text token;
     private Result result;
 
-    record Result(boolean enabled, boolean writeEnabled, int port, boolean regenerateToken)
+    record Result(boolean enabled, boolean writeEnabled, boolean localNetworkEnabled, int port,
+                  boolean regenerateToken)
     {
     }
 
@@ -52,6 +54,8 @@ final class McpSettingsDialog extends AbstractDialog<McpSettingsDialog.Result>
         enabled.setName("MCP-Server aktivieren");
         writeEnabled = new CheckboxInput(McpSettings.isWriteEnabled());
         writeEnabled.setName("Ueberweisungen anlegen");
+        localNetworkEnabled = new CheckboxInput(McpSettings.isLocalNetworkEnabled());
+        localNetworkEnabled.setName("Zugriff aus lokalem Netzwerk erlauben");
         port = new TextInput(Integer.toString(McpSettings.getPort()));
         port.setName("Port");
         regenerateToken = new CheckboxInput(false);
@@ -67,15 +71,21 @@ final class McpSettingsDialog extends AbstractDialog<McpSettingsDialog.Result>
                 + "lokale KI-Clients wie Codex oder Claude Desktop bereit. Dieser Server bietet die "
                 + "Report-Template-Objekte standardmaessig lesend an. Ueberweisungen anlegen erlaubt "
                 + "nur das lokale Anlegen von Entwuerfen, kein Absenden an die Bank. Der Server bindet "
-                + "nur an 127.0.0.1 und akzeptiert nur Requests mit dem angezeigten Bearer-Token.",
+                + "standardmaessig nur an 127.0.0.1. Fuer Zugriff aus dem lokalen Netzwerk kann er "
+                + "optional an 0.0.0.0 gebunden werden. Jeder Request muss den angezeigten "
+                + "Bearer-Token enthalten. Wenn der Server bereits laeuft, wird ein Wechsel der "
+                + "Netzwerk-Bindung erst nach einem Neustart von Hibiscus aktiv.",
             true);
         container.addInput(enabled);
         container.addInput(writeEnabled);
+        container.addInput(localNetworkEnabled);
         container.addInput(port);
         endpoint = copyRow(container.getComposite(), "Endpoint", McpSettings.endpoint(), "Endpoint kopieren");
         token = copyRow(container.getComposite(), "Bearer-Token", McpSettings.ensureToken(), "Token kopieren");
         if (port.getControl() instanceof Text portText)
             portText.addModifyListener(event -> endpoint.setText(endpointFromInput()));
+        if (localNetworkEnabled.getControl() instanceof Button localNetworkButton)
+            localNetworkButton.addListener(SWT.Selection, event -> endpoint.setText(endpointFromInput()));
         container.addInput(regenerateToken);
         container.addText("Status: " + (McpServerManager.get().isRunning() ? "laeuft" : "gestoppt"), true);
         container.addSeparator();
@@ -91,8 +101,8 @@ final class McpSettingsDialog extends AbstractDialog<McpSettingsDialog.Result>
                     int parsedPort = Integer.parseInt(((String) port.getValue()).trim());
                     if (parsedPort <= 0 || parsedPort > 65535)
                         throw new NumberFormatException("Port ausserhalb des gueltigen Bereichs.");
-                    result = new Result((Boolean) enabled.getValue(), (Boolean) writeEnabled.getValue(), parsedPort,
-                        (Boolean) regenerateToken.getValue());
+                    result = new Result((Boolean) enabled.getValue(), (Boolean) writeEnabled.getValue(),
+                        (Boolean) localNetworkEnabled.getValue(), parsedPort, (Boolean) regenerateToken.getValue());
                     close();
                 }
                 catch (Exception e)
@@ -168,7 +178,7 @@ final class McpSettingsDialog extends AbstractDialog<McpSettingsDialog.Result>
         {
             int parsedPort = Integer.parseInt(((String) port.getValue()).trim());
             if (parsedPort > 0 && parsedPort <= 65535)
-                return "http://127.0.0.1:" + parsedPort + "/mcp";
+                return McpSettings.endpoint(parsedPort, (Boolean) localNetworkEnabled.getValue());
         }
         catch (Exception ignored)
         {

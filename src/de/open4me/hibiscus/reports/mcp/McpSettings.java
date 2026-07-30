@@ -13,6 +13,7 @@ public final class McpSettings
 
     private static final String LEGACY_TOKEN = "token";
     private static final String WALLET_TOKEN = "mcp.token";
+    private static final String LOCAL_NETWORK_ENABLED = "localNetworkEnabled";
     private static final Settings SETTINGS = new Settings(McpSettings.class);
     private static final SecureRandom RANDOM = new SecureRandom();
 
@@ -38,6 +39,16 @@ public final class McpSettings
     public static void setWriteEnabled(boolean enabled)
     {
         SETTINGS.setAttribute("writeEnabled", enabled);
+    }
+
+    public static boolean isLocalNetworkEnabled()
+    {
+        return SETTINGS.getBoolean(LOCAL_NETWORK_ENABLED, false);
+    }
+
+    public static void setLocalNetworkEnabled(boolean enabled)
+    {
+        SETTINGS.setAttribute(LOCAL_NETWORK_ENABLED, enabled);
     }
 
     public static int getPort()
@@ -87,7 +98,17 @@ public final class McpSettings
 
     public static String endpoint()
     {
-        return "http://127.0.0.1:" + getPort() + "/mcp";
+        return endpoint(getPort(), isLocalNetworkEnabled());
+    }
+
+    public static String bindAddress()
+    {
+        return McpNetworkBinding.bindAddress(isLocalNetworkEnabled());
+    }
+
+    public static String endpoint(int port, boolean localNetworkEnabled)
+    {
+        return McpNetworkBinding.endpoint(port, localNetworkEnabled);
     }
 
     public static String regenerateToken()
