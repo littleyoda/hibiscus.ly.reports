@@ -1,7 +1,7 @@
 # Entwicklung
 
 Diese Datei beschreibt technische Details fuer Entwickler. Die fuer
-Report-Autoren nutzbaren Template-Objekte sind in [REPORT_OBJECTS.md](REPORT_OBJECTS.md)
+Report-Autoren nutzbaren Template-Objekte sind in [README_REPORTS.md](README_REPORTS.md)
 dokumentiert.
 
 ## Template-Objekte aus anderen Plugins
