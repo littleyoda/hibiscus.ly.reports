@@ -151,11 +151,39 @@ Listener im Betrieb zwischen `127.0.0.1` und `0.0.0.0` neu gebunden werden
 muss.
 
 Beispiel:
+`<token>` muss durch das im Programm angezeigte Token ersetzt werden.
 
 ```text
 Endpoint: http://127.0.0.1:37653/mcp
 Header:   Authorization: Bearer <token>
 ```
+
+LM-Studio:
+
+```text
+{
+  "mcpServers": {
+    "hibiscus": {
+      "url": "http://127.0.0.1:37653/mcp",
+      "headers": {
+        "Authorization": "Bearer <token>"
+      }
+    }
+  }
+}
+```
+
+Librechat:
+```text
+mcpServers:
+  hibiscus:
+    type: streamable-http
+    url: http://127.0.0.1:37653/mcp
+    headers:
+      Authorization: "Bearer <token>"
+```
+
+
 
 Verfuegbare Tools:
 
