@@ -83,6 +83,11 @@ public final class ReportTransactionsProxy implements Iterable<ReportTransaction
         return transactions();
     }
 
+    public void invalidate()
+    {
+        transactions = null;
+    }
+
     private List<ReportTransaction> transactions()
     {
         if (transactions == null)

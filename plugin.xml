@@ -19,6 +19,8 @@
 
   <menu>
     <item id="hibiscus.ly.reports.menu" name="Reports">
+      <item id="hibiscus.ly.reports.reports" name="Reports..." action="de.open4me.hibiscus.reports.ui.OpenDynamicReportsViewAction" />
+      <item id="hibiscus.ly.reports.automation" name="Automatisierung..." action="de.open4me.hibiscus.reports.ui.OpenAutomationViewAction" />
       <item id="hibiscus.ly.reports.mcp-settings" name="MCP-Server..." action="de.open4me.hibiscus.reports.ui.McpSettingsAction" />
     </item>
   </menu>

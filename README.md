@@ -191,6 +191,7 @@ Verfuegbare Tools:
 * `hibiscus_template_objects_list`: Top-Level-Objekte des Template-Kontexts
 * `hibiscus_template_render`: Jinjava-Template-String gegen aktuelle Daten rendern
 * `hibiscus_accounts_list`: aktive oder alle Konten auflisten
+* `hibiscus_accounts_sync`: Konten ueber Hibiscus synchronisieren
 * `hibiscus_account_groups_list`: aktive oder alle Kontogruppen auflisten
 * `hibiscus_transactions_list`: Umsaetze mit Zeitraum, Konto und Limit laden
 * `hibiscus_sepa_transfer_create`: lokalen SEPA-Ueberweisungsentwurf anlegen
@@ -203,6 +204,11 @@ muss diese Plugins dafuer nicht direkt kennen.
 nur einen lokalen Entwurf in Hibiscus. Der Auftrag muss anschliessend in
 Hibiscus geprueft und manuell ausgefuehrt werden. Das Tool funktioniert nur,
 wenn im MCP-Dialog **Ueberweisungen anlegen** aktiviert wurde.
+
+`hibiscus_accounts_sync` synchronisiert Konten ueber die registrierten
+Hibiscus-Synchronisierungs-Backends. Konten koennen ueber `all`, `accountIds`,
+`ibans`, `kundennummern`, `kundenkennungen`, `kontonummern`, `bezeichnungen`
+oder `backendClasses` ausgewaehlt werden.
 
 Plugins koennen zusaetzlich eigene strukturierte MCP-Tools registrieren. Wenn
 zum Beispiel der Depotviewer installiert ist, koennen dadurch Tools wie

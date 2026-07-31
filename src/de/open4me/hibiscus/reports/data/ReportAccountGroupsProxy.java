@@ -50,6 +50,12 @@ public final class ReportAccountGroupsProxy implements Iterable<ReportAccountGro
         return getAktive().isEmpty();
     }
 
+    public void invalidate()
+    {
+        activeGroups = null;
+        allGroups = null;
+    }
+
     private static List<ReportAccountGroup> group(List<ReportAccount> accounts)
     {
         Map<String, List<ReportAccount>> grouped = new LinkedHashMap<>();
