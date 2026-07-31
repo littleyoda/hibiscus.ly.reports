@@ -179,6 +179,7 @@ mcpServers:
   hibiscus:
     type: streamable-http
     url: http://127.0.0.1:37653/mcp
+    requiresOAuth: false
     headers:
       Authorization: "Bearer <token>"
 ```
