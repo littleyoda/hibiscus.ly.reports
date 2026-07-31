@@ -77,7 +77,8 @@ public final class AutomationView extends AbstractView
         createList(root);
         createTabs(root);
 
-        loadAutomations(null);
+        Automation initial = getCurrentObject() instanceof Automation automation ? automation : null;
+        loadAutomations(initial);
     }
 
     private void createList(Composite parent)
@@ -388,6 +389,7 @@ public final class AutomationView extends AbstractView
                 return;
             repository.deleteAutomation(selected.id());
             loadAutomations(null);
+            ReportsNavigationRefresher.refresh();
         }
         catch (Exception e)
         {
@@ -408,6 +410,7 @@ public final class AutomationView extends AbstractView
         {
             Automation imported = new AutomationJsonTransfer(repository).importAutomation(Path.of(selectedFile));
             loadAutomations(imported);
+            ReportsNavigationRefresher.refresh();
             Application.getMessagingFactory().sendMessage(new StatusBarMessage(
                 "Automation importiert.", StatusBarMessage.TYPE_SUCCESS));
         }
@@ -459,6 +462,7 @@ public final class AutomationView extends AbstractView
             savePrimaryTrigger(saved);
             selected = saved;
             loadAutomations(saved);
+            ReportsNavigationRefresher.refresh();
             Application.getMessagingFactory().sendMessage(new StatusBarMessage(
                 "Automation gespeichert.", StatusBarMessage.TYPE_SUCCESS));
         }

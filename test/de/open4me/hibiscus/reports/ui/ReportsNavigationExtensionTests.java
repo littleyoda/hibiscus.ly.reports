@@ -4,6 +4,9 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
+import de.open4me.hibiscus.reports.automation.model.Automation;
+import de.open4me.hibiscus.reports.automation.model.MissedTriggerPolicy;
+import de.open4me.hibiscus.reports.automation.model.RunMode;
 import de.open4me.hibiscus.reports.model.DynamicReport;
 import de.willuhn.jameica.gui.Item;
 import de.willuhn.jameica.gui.NavigationItem;
@@ -19,6 +22,7 @@ public final class ReportsNavigationExtensionTests
         try
         {
             buildsNestedReportNavigation();
+            buildsNestedAutomationNavigation();
         }
         catch (Exception e)
         {
@@ -66,9 +70,40 @@ public final class ReportsNavigationExtensionTests
         }), "all 2026 reports have actions");
     }
 
+    private static void buildsNestedAutomationNavigation() throws Exception
+    {
+        ReportNavigationItem root = new ReportNavigationItem(null, "Automatisierung",
+            ReportsNavigationExtension.AUTOMATION_ROOT_ID, "folder.png", "folder-open.png",
+            new OpenAutomationViewAction(), true);
+
+        ReportsNavigationExtension.addAutomationChildren(root, List.of(
+            automation("1", "zebra"),
+            automation("2", "sync/depot/scalable"),
+            automation("3", "sync/banken"),
+            automation("4", "alpha")));
+
+        List<NavigationItem> rootChildren = children(root);
+        checkEquals(List.of("alpha", "sync", "zebra"), names(rootChildren), "automation root children");
+        check(rootChildren.get(0).getAction() != null, "root automation has action");
+        check(rootChildren.get(1).getAction() == null, "automation folder has no action");
+
+        List<NavigationItem> syncChildren = children(rootChildren.get(1));
+        checkEquals(List.of("banken", "depot"), names(syncChildren), "sync automation children");
+        check(syncChildren.get(0).getAction() != null, "nested automation has action");
+
+        List<NavigationItem> depotChildren = children(syncChildren.get(1));
+        checkEquals(List.of("scalable"), names(depotChildren), "depot automation children");
+        check(depotChildren.get(0).getAction() != null, "deep automation has action");
+    }
+
     private static DynamicReport report(String displayName)
     {
         return new DynamicReport(Path.of("/tmp/reports", displayName + ".html"), displayName);
+    }
+
+    private static Automation automation(String id, String name)
+    {
+        return new Automation(id, name, "", true, RunMode.SINGLE, MissedTriggerPolicy.IGNORIEREN, "", 100);
     }
 
     private static List<NavigationItem> children(NavigationItem item) throws Exception
