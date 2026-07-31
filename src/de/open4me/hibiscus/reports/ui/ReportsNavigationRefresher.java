@@ -6,6 +6,7 @@ import java.util.Map;
 import org.eclipse.swt.widgets.Tree;
 import org.eclipse.swt.widgets.TreeItem;
 
+import de.open4me.hibiscus.reports.automation.runtime.AutomationService;
 import de.open4me.hibiscus.reports.data.DynamicReportRepository;
 import de.open4me.hibiscus.reports.model.DynamicReport;
 import de.willuhn.jameica.gui.GUI;
@@ -33,31 +34,13 @@ final class ReportsNavigationRefresher
                 return;
 
             Map<String, TreeItem> itemLookup = itemLookup(navigation);
-            TreeItem reportsTreeItem = itemLookup.get(ReportsNavigationExtension.REPORTS_ROOT_ID);
-            if (reportsTreeItem == null || reportsTreeItem.isDisposed())
-                return;
-
-            NavigationItem oldRoot = (NavigationItem) reportsTreeItem.getData(NAVIGATION_DATA_KEY);
-            if (oldRoot == null)
-                return;
-
-            Item parent = oldRoot.getParent() instanceof Item item ? item : null;
-            ReportNavigationItem root = new ReportNavigationItem(parent, oldRoot.getName(),
-                oldRoot.getID(), "folder.png", "folder-open.png",
-                new OpenDynamicReportsViewAction(), oldRoot.isExpanded());
-            DynamicReportRepository repository = DynamicReportRepository.jameica();
-            repository.initialize();
-            ReportsNavigationExtension.addReportChildren(root, repository.listReports());
-
-            removeChildren(reportsTreeItem, itemLookup);
-            reportsTreeItem.setData(NAVIGATION_DATA_KEY, root);
-            reportsTreeItem.setText(root.getName());
-            reportsTreeItem.setImage(reportsTreeItem.getExpanded() ? root.getIconOpen() : root.getIconClose());
-            itemLookup.put(root.getID(), reportsTreeItem);
-
-            createChildren(reportsTreeItem, root, itemLookup);
-
-            Tree tree = reportsTreeItem.getParent();
+            Tree tree = null;
+            TreeItem reportsTreeItem = refreshReports(itemLookup);
+            if (reportsTreeItem != null)
+                tree = reportsTreeItem.getParent();
+            TreeItem automationTreeItem = refreshAutomations(itemLookup);
+            if (tree == null && automationTreeItem != null)
+                tree = automationTreeItem.getParent();
             if (tree != null && !tree.isDisposed())
                 tree.redraw();
         }
@@ -65,6 +48,49 @@ final class ReportsNavigationRefresher
         {
             Logger.warn("unable to refresh reports navigation: " + e.getMessage());
         }
+    }
+
+    private static TreeItem refreshReports(Map<String, TreeItem> itemLookup) throws Exception
+    {
+        return refreshRoot(itemLookup, ReportsNavigationExtension.REPORTS_ROOT_ID,
+            new OpenDynamicReportsViewAction(), root -> {
+                DynamicReportRepository repository = DynamicReportRepository.jameica();
+                repository.initialize();
+                ReportsNavigationExtension.addReportChildren(root, repository.listReports());
+            });
+    }
+
+    private static TreeItem refreshAutomations(Map<String, TreeItem> itemLookup) throws Exception
+    {
+        return refreshRoot(itemLookup, ReportsNavigationExtension.AUTOMATION_ROOT_ID,
+            new OpenAutomationViewAction(), root -> ReportsNavigationExtension.addAutomationChildren(root,
+                AutomationService.get().repository().listAutomations()));
+    }
+
+    private static TreeItem refreshRoot(Map<String, TreeItem> itemLookup, String rootId,
+                                        de.willuhn.jameica.gui.Action action, RootChildren children)
+        throws Exception
+    {
+        TreeItem treeItem = itemLookup.get(rootId);
+        if (treeItem == null || treeItem.isDisposed())
+            return null;
+
+        NavigationItem oldRoot = (NavigationItem) treeItem.getData(NAVIGATION_DATA_KEY);
+        if (oldRoot == null)
+            return null;
+
+        Item parent = oldRoot.getParent() instanceof Item item ? item : null;
+        ReportNavigationItem root = new ReportNavigationItem(parent, oldRoot.getName(),
+            oldRoot.getID(), "folder.png", "folder-open.png", action, oldRoot.isExpanded());
+        children.add(root);
+
+        removeChildren(treeItem, itemLookup);
+        treeItem.setData(NAVIGATION_DATA_KEY, root);
+        treeItem.setText(root.getName());
+        treeItem.setImage(treeItem.getExpanded() ? root.getIconOpen() : root.getIconClose());
+        itemLookup.put(root.getID(), treeItem);
+        createChildren(treeItem, root, itemLookup);
+        return treeItem;
     }
 
     @SuppressWarnings("unchecked")
@@ -140,5 +166,10 @@ final class ReportsNavigationRefresher
         {
             Logger.warn("unable to remove old reports navigation item from lookup: " + e.getMessage());
         }
+    }
+
+    private interface RootChildren
+    {
+        void add(ReportNavigationItem root) throws Exception;
     }
 }

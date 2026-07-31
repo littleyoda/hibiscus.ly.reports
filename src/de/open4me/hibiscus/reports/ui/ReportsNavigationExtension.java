@@ -9,6 +9,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import de.open4me.hibiscus.reports.automation.model.Automation;
+import de.open4me.hibiscus.reports.automation.runtime.AutomationService;
 import de.open4me.hibiscus.reports.data.DynamicReportRepository;
 import de.open4me.hibiscus.reports.model.DynamicReport;
 import de.willuhn.jameica.gui.Action;
@@ -22,6 +24,7 @@ import de.willuhn.util.ApplicationException;
 public class ReportsNavigationExtension implements Extension
 {
     static final String REPORTS_ROOT_ID = "hibiscus.navi.reports";
+    static final String AUTOMATION_ROOT_ID = "hibiscus.navi.automation";
     private static final Collator COLLATOR = Collator.getInstance(Locale.GERMANY);
     private static final Comparator<Item> ITEM_NAME_ORDER = ReportsNavigationExtension::compareItemsByName;
 
@@ -35,10 +38,12 @@ public class ReportsNavigationExtension implements Extension
             REPORTS_ROOT_ID, "folder.png", "folder-open.png",
             new OpenDynamicReportsViewAction(), true);
         ReportNavigationItem automation = new ReportNavigationItem(parent, "Automatisierung",
-            "hibiscus.navi.automation", "system-run.png", new OpenAutomationViewAction());
+            AUTOMATION_ROOT_ID, "folder.png", "folder-open.png",
+            new OpenAutomationViewAction(), true);
         try
         {
             addReportChildren(reports);
+            addAutomationChildren(automation);
             parent.addChild(reports);
             parent.addChild(automation);
         }
@@ -66,14 +71,37 @@ public class ReportsNavigationExtension implements Extension
     {
         Map<String, ReportNavigationItem> folders = new LinkedHashMap<>();
         for (DynamicReport report : reports)
-            addReport(parent, folders, report);
+            addItem(parent, folders, report.displayName(), "hibiscus.navi.reports.folder.",
+                "report", (itemParent, name) -> createReportItem(itemParent, report, name));
         sortRecursively(parent);
     }
 
-    private static void addReport(ReportNavigationItem root, Map<String, ReportNavigationItem> folders,
-                                  DynamicReport report)
+    static void addAutomationChildren(ReportNavigationItem parent)
     {
-        String[] segments = segments(report);
+        try
+        {
+            addAutomationChildren(parent, AutomationService.get().repository().listAutomations());
+        }
+        catch (Exception e)
+        {
+            Logger.error("unable to load automations for navigation", e);
+        }
+    }
+
+    static void addAutomationChildren(ReportNavigationItem parent, List<Automation> automations)
+    {
+        Map<String, ReportNavigationItem> folders = new LinkedHashMap<>();
+        for (Automation automation : automations)
+            addItem(parent, folders, automation.name(), "hibiscus.navi.automation.folder.",
+                "Automation", (itemParent, name) -> createAutomationItem(itemParent, automation, name));
+        sortRecursively(parent);
+    }
+
+    private static void addItem(ReportNavigationItem root, Map<String, ReportNavigationItem> folders,
+                                String displayName, String folderIdPrefix, String fallback,
+                                NavigationLeafFactory leafFactory)
+    {
+        String[] segments = segments(displayName, fallback);
         ReportNavigationItem parent = root;
         StringBuilder path = new StringBuilder();
         for (int i = 0; i < segments.length - 1; i++)
@@ -85,32 +113,31 @@ public class ReportsNavigationExtension implements Extension
             ReportNavigationItem folder = folders.get(key);
             if (folder == null)
             {
-                folder = createFolderItem(parent, segments[i], key);
+                folder = createFolderItem(parent, segments[i], folderIdPrefix + id(key));
                 folders.put(key, folder);
                 parent.addChild(folder);
             }
             parent = folder;
         }
-        parent.addChild(createReportItem(parent, report, segments[segments.length - 1]));
+        parent.addChild(leafFactory.create(parent, segments[segments.length - 1]));
     }
 
-    private static String[] segments(DynamicReport report)
+    private static String[] segments(String displayName, String fallback)
     {
-        String name = report == null ? "" : report.displayName();
+        String name = displayName == null ? "" : displayName;
         String[] raw = name == null ? new String[0] : name.replace('\\', '/').split("/");
         String[] segments = java.util.Arrays.stream(raw)
             .filter(segment -> segment != null && !segment.isBlank())
             .toArray(String[]::new);
         if (segments.length == 0)
-            return new String[] { "report" };
+            return new String[] { fallback };
         return segments;
     }
 
-    private static ReportNavigationItem createFolderItem(Item parent, String name, String path)
+    private static ReportNavigationItem createFolderItem(Item parent, String name, String id)
     {
         return new ReportNavigationItem(parent, name,
-            "hibiscus.navi.reports.folder." + id(path),
-            "folder.png", "folder-open.png", null, true);
+            id, "folder.png", "folder-open.png", null, true);
     }
 
     private static void sortRecursively(ReportNavigationItem item)
@@ -162,6 +189,13 @@ public class ReportsNavigationExtension implements Extension
             "office-chart-area.png", new OpenReportAction(report));
     }
 
+    private static ReportNavigationItem createAutomationItem(Item parent, Automation automation, String name)
+    {
+        return new ReportNavigationItem(parent, name,
+            "hibiscus.navi.automation.automation." + id(automation),
+            "system-run.png", new OpenAutomationAction(automation));
+    }
+
     static String id(DynamicReport report)
     {
         String name = report == null ? null : report.displayName();
@@ -188,6 +222,25 @@ public class ReportsNavigationExtension implements Extension
         return normalized + "-" + Integer.toHexString((value == null ? normalized : value).hashCode());
     }
 
+    static String id(Automation automation)
+    {
+        String name = automation == null ? null : automation.name();
+        String normalized = name == null ? "automation" : name.toLowerCase(Locale.ROOT)
+            .replace('\\', '-').replace('/', '-')
+            .replaceAll("[^a-z0-9._-]+", "-")
+            .replaceAll("-+", "-")
+            .replaceAll("^-|-$", "");
+        if (normalized.isBlank())
+            normalized = "automation";
+        String source = automation == null || automation.id() == null ? normalized : automation.id();
+        return normalized + "-" + Integer.toHexString(source.hashCode());
+    }
+
+    private interface NavigationLeafFactory
+    {
+        ReportNavigationItem create(Item parent, String name);
+    }
+
     private static final class OpenReportAction implements Action
     {
         private final DynamicReport report;
@@ -201,6 +254,22 @@ public class ReportsNavigationExtension implements Extension
         public void handleAction(Object context) throws ApplicationException
         {
             GUI.startView(DynamicReportsView.class, report);
+        }
+    }
+
+    private static final class OpenAutomationAction implements Action
+    {
+        private final Automation automation;
+
+        private OpenAutomationAction(Automation automation)
+        {
+            this.automation = automation;
+        }
+
+        @Override
+        public void handleAction(Object context) throws ApplicationException
+        {
+            GUI.startView(AutomationView.class, automation);
         }
     }
 }
