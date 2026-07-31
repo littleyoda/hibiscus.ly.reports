@@ -2,7 +2,7 @@
 <plugin xmlns="http://www.willuhn.de/schema/jameica-plugin"
         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
         xsi:schemaLocation="http://www.willuhn.de/schema/jameica-plugin https://www.willuhn.de/schema/jameica-plugin-1.5.xsd"
-        name="hibiscus.ly.reports" version="0.9.5" class="de.open4me.hibiscus.reports.Plugin">
+        name="hibiscus.ly.reports" version="0.9.6" class="de.open4me.hibiscus.reports.Plugin">
 
   <description>Interaktive Geldfluss- und Perioden-Auswertungen und Report-Generator für Hibiscus</description>
   <license>GPL-3.0</license>
@@ -19,6 +19,8 @@
 
   <menu>
     <item id="hibiscus.ly.reports.menu" name="Reports">
+      <item id="hibiscus.ly.reports.reports" name="Reports..." action="de.open4me.hibiscus.reports.ui.OpenDynamicReportsViewAction" />
+      <item id="hibiscus.ly.reports.automation" name="Automatisierung..." action="de.open4me.hibiscus.reports.ui.OpenAutomationViewAction" />
       <item id="hibiscus.ly.reports.mcp-settings" name="MCP-Server..." action="de.open4me.hibiscus.reports.ui.McpSettingsAction" />
     </item>
   </menu>

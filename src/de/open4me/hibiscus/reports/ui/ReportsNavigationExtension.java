@@ -34,10 +34,13 @@ public class ReportsNavigationExtension implements Extension
         ReportNavigationItem reports = new ReportNavigationItem(parent, "Reports",
             REPORTS_ROOT_ID, "folder.png", "folder-open.png",
             new OpenDynamicReportsViewAction(), true);
+        ReportNavigationItem automation = new ReportNavigationItem(parent, "Automatisierung",
+            "hibiscus.navi.automation", "system-run.png", new OpenAutomationViewAction());
         try
         {
             addReportChildren(reports);
             parent.addChild(reports);
+            parent.addChild(automation);
         }
         catch (RemoteException e)
         {

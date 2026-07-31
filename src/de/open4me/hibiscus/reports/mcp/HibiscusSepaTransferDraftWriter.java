@@ -9,7 +9,7 @@ import de.willuhn.jameica.hbci.rmi.AuslandsUeberweisung;
 import de.willuhn.jameica.hbci.rmi.Konto;
 import de.willuhn.jameica.hbci.server.AuslandsUeberweisungTyp;
 
-final class HibiscusSepaTransferDraftWriter implements SepaTransferDraftWriter
+public final class HibiscusSepaTransferDraftWriter implements SepaTransferDraftWriter
 {
     @Override
     public Result create(Request request) throws Exception

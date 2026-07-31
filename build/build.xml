@@ -20,6 +20,7 @@
       <include name="swt/**/*.jar" />
       <include name="de_willuhn_ds/*.jar" />
       <include name="de_willuhn_util/*.jar" />
+      <include name="javascript/*.jar" />
     </fileset>
     <fileset dir="${hibiscus.dir}/lib">
       <include name="swtchart/*.jar" />

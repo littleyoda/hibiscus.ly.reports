@@ -13,6 +13,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BooleanSupplier;
+import java.util.function.Function;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -40,6 +41,7 @@ public final class McpJsonRpcHandler
     private final ReportTemplateContextFactory contextFactory;
     private final ReportTransactionProvider transactionProvider;
     private final SepaTransferDraftWriter transferDraftWriter;
+    private final McpAccountSynchronizer accountSynchronizer;
     private final BooleanSupplier writeEnabled;
 
     public McpJsonRpcHandler(ReportTemplateContextFactory contextFactory,
@@ -53,9 +55,20 @@ public final class McpJsonRpcHandler
                       SepaTransferDraftWriter transferDraftWriter,
                       BooleanSupplier writeEnabled)
     {
+        this(contextFactory, transactionProvider, transferDraftWriter, new HibiscusMcpAccountSynchronizer(),
+            writeEnabled);
+    }
+
+    McpJsonRpcHandler(ReportTemplateContextFactory contextFactory,
+                      ReportTransactionProvider transactionProvider,
+                      SepaTransferDraftWriter transferDraftWriter,
+                      McpAccountSynchronizer accountSynchronizer,
+                      BooleanSupplier writeEnabled)
+    {
         this.contextFactory = contextFactory;
         this.transactionProvider = transactionProvider;
         this.transferDraftWriter = transferDraftWriter;
+        this.accountSynchronizer = accountSynchronizer;
         this.writeEnabled = writeEnabled;
     }
 
@@ -144,6 +157,9 @@ public final class McpJsonRpcHandler
         tools.add(tool("hibiscus_accounts_list", "Konten auflisten",
             "Listet aktive oder alle Hibiscus-Konten.",
             schema(Map.of("scope", "string"))));
+        tools.add(tool("hibiscus_accounts_sync", "Konten synchronisieren",
+            "Synchronisiert Hibiscus-Konten ueber die registrierten Synchronisierungs-Backends.",
+            syncSchema()));
         tools.add(tool("hibiscus_account_groups_list", "Kontogruppen auflisten",
             "Listet aktive oder alle Kontogruppen, optional inklusive Konten.",
             schema(Map.of("scope", "string", "includeAccounts", "boolean"))));
@@ -180,6 +196,7 @@ public final class McpJsonRpcHandler
             case "hibiscus_template_render" -> toolResult(renderTemplate(text(arguments.get("template"))),
                 "Template gerendert.");
             case "hibiscus_accounts_list" -> toolResult(accounts(arguments), "Konten geladen.");
+            case "hibiscus_accounts_sync" -> toolResult(syncAccounts(arguments), "Kontensynchronisierung beendet.");
             case "hibiscus_account_groups_list" -> toolResult(accountGroups(arguments), "Kontogruppen geladen.");
             case "hibiscus_transactions_list" -> toolResult(transactions(arguments), "Umsaetze geladen.");
             case "hibiscus_sepa_transfer_create" -> toolResult(createSepaTransferDraft(arguments),
@@ -244,6 +261,107 @@ public final class McpJsonRpcHandler
         accounts.forEach(account -> array.add(account(account, false)));
         result.put("count", accounts.size());
         return result;
+    }
+
+    private ObjectNode syncAccounts(JsonNode arguments)
+    {
+        boolean all = bool(arguments.get("all"), false);
+        List<ReportAccount> selectedAccounts = all ? List.of() : selectedAccounts(arguments);
+        if (!all && selectedAccounts.isEmpty())
+            throw new IllegalArgumentException("Keine Konten fuer die Synchronisierung ausgewaehlt.");
+        try
+        {
+            return (ObjectNode) structured(accountSynchronizer.sync(selectedAccounts, all));
+        }
+        catch (Exception e)
+        {
+            throw new IllegalStateException("Kontensynchronisierung fehlgeschlagen: " + e.getMessage(), e);
+        }
+    }
+
+    private List<ReportAccount> selectedAccounts(JsonNode arguments)
+    {
+        ReportAccountsProxy proxy = (ReportAccountsProxy) contextFactory.create(new ArrayList<>()).objects().get("konten");
+        Map<String, ReportAccount> selected = new LinkedHashMap<>();
+        List<String> missing = new ArrayList<>();
+
+        for (String value : strings(arguments, "accountId", "accountIds"))
+            add(selected, missing, value, accountBy(value, proxy.getAlle(), ReportAccount::getId), "accountId");
+        for (String value : strings(arguments, "iban", "ibans"))
+            add(selected, missing, value, proxy.mitIban(value), "iban");
+        for (String value : strings(arguments, "kundennummer", "kundennummern"))
+            add(selected, missing, value, proxy.mitKundennummer(value), "kundennummer");
+        for (String value : strings(arguments, "kundenkennung", "kundenkennungen"))
+            add(selected, missing, value, proxy.mitKundenkennung(value), "kundenkennung");
+        for (String value : strings(arguments, "kontonummer", "kontonummern"))
+            add(selected, missing, value, proxy.mitKontonummer(value), "kontonummer");
+        for (String value : strings(arguments, "bezeichnung", "bezeichnungen"))
+            add(selected, missing, value, proxy.mitBezeichnung(value), "bezeichnung");
+        for (String value : strings(arguments, "backendClass", "backendClasses"))
+        {
+            int before = selected.size();
+            for (ReportAccount account : proxy.getAlle())
+            {
+                if (value.equals(account.getBackendClass()))
+                    selected.put(account.getId(), account);
+            }
+            if (selected.size() == before)
+                missing.add("backendClass=" + value);
+        }
+
+        if (!missing.isEmpty())
+            throw new IllegalArgumentException("Konten nicht gefunden: " + String.join(", ", missing));
+        return List.copyOf(selected.values());
+    }
+
+    private static ReportAccount accountBy(String value, List<ReportAccount> accounts,
+                                           Function<ReportAccount, String> getter)
+    {
+        if (value == null || value.isBlank())
+            return null;
+        for (ReportAccount account : accounts)
+        {
+            if (value.equals(getter.apply(account)))
+                return account;
+        }
+        return null;
+    }
+
+    private static void add(Map<String, ReportAccount> accounts, List<String> missing, String value,
+                            ReportAccount account, String label)
+    {
+        if (value == null || value.isBlank())
+            return;
+        if (account == null)
+        {
+            missing.add(label + "=" + value);
+            return;
+        }
+        accounts.put(account.getId(), account);
+    }
+
+    private static List<String> strings(JsonNode arguments, String singular, String plural)
+    {
+        List<String> result = new ArrayList<>();
+        addString(result, arguments.get(singular));
+        JsonNode values = arguments.get(plural);
+        if (values != null && values.isArray())
+        {
+            for (JsonNode value : values)
+                addString(result, value);
+        }
+        else
+        {
+            addString(result, values);
+        }
+        return result.stream().distinct().toList();
+    }
+
+    private static void addString(List<String> values, JsonNode node)
+    {
+        String value = text(node);
+        if (value != null && !value.isBlank())
+            values.add(value.trim());
     }
 
     private ObjectNode accountGroups(JsonNode arguments)
@@ -398,8 +516,13 @@ public final class McpJsonRpcHandler
         node.put("id", account.getId());
         node.put("name", account.getName());
         node.put("blz", account.getBlz());
+        node.put("kontonummer", account.getKontonummer());
+        node.put("kundennummer", account.getKundennummer());
+        node.put("kundenkennung", account.getKundenkennung());
+        node.put("bezeichnung", account.getBezeichnung());
         node.put("iban", account.getIban());
         node.put("gruppe", account.getGruppe());
+        node.put("backendClass", account.getBackendClass());
         node.put("saldo", account.getSaldo());
         node.put("verfuegbar", account.getVerfuegbar());
         node.put("aktiv", account.getAktiv());
@@ -502,6 +625,28 @@ public final class McpJsonRpcHandler
         ObjectNode schema = schema();
         ObjectNode props = (ObjectNode) schema.get("properties");
         properties.forEach((name, type) -> props.putObject(name).put("type", type));
+        return schema;
+    }
+
+    private ObjectNode syncSchema()
+    {
+        ObjectNode schema = schema();
+        ObjectNode props = (ObjectNode) schema.get("properties");
+        property(props, "all", "boolean", "Alle synchronisierbaren Konten");
+        property(props, "accountId", "string", "Konto-ID");
+        arrayProperty(props, "accountIds", "Konto-IDs");
+        property(props, "iban", "string", "IBAN");
+        arrayProperty(props, "ibans", "IBANs");
+        property(props, "kundennummer", "string", "Kundennummer");
+        arrayProperty(props, "kundennummern", "Kundennummern");
+        property(props, "kundenkennung", "string", "Kundenkennung");
+        arrayProperty(props, "kundenkennungen", "Kundenkennungen");
+        property(props, "kontonummer", "string", "Kontonummer");
+        arrayProperty(props, "kontonummern", "Kontonummern");
+        property(props, "bezeichnung", "string", "Bezeichnung");
+        arrayProperty(props, "bezeichnungen", "Bezeichnungen");
+        property(props, "backendClass", "string", "Backend-Klasse");
+        arrayProperty(props, "backendClasses", "Backend-Klassen");
         return schema;
     }
 
@@ -618,6 +763,13 @@ public final class McpJsonRpcHandler
         ObjectNode property = properties.putObject(name);
         property.put("type", type);
         property.put("title", title);
+        return property;
+    }
+
+    private static ObjectNode arrayProperty(ObjectNode properties, String name, String title)
+    {
+        ObjectNode property = property(properties, name, "array", title);
+        property.putObject("items").put("type", "string");
         return property;
     }
 

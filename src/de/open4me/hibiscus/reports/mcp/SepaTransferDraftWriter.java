@@ -4,7 +4,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 
-interface SepaTransferDraftWriter
+public interface SepaTransferDraftWriter
 {
     Result create(Request request) throws Exception;
 

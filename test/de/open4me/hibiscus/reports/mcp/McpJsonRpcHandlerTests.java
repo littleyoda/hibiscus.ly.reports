@@ -41,6 +41,7 @@ public final class McpJsonRpcHandlerTests
             listsTools();
             listsTransferSchemaTitles();
             listsAccounts();
+            syncsSelectedAccounts();
             listsTransactionsWithFilters();
             rendersExtensionObjects();
             listsProviderTools();
@@ -73,6 +74,7 @@ public final class McpJsonRpcHandlerTests
         response.path("result").path("tools").forEach(tool -> names.add(tool.path("name").asText()));
         check(names.contains("hibiscus_template_render"), "template render tool");
         check(names.contains("hibiscus_accounts_list"), "accounts tool");
+        check(names.contains("hibiscus_accounts_sync"), "accounts sync tool");
         check(names.contains("hibiscus_sepa_transfer_create"), "sepa transfer create tool");
         check(!names.contains("reports_read"), "no report file tool");
     }
@@ -110,6 +112,26 @@ public final class McpJsonRpcHandlerTests
         checkEquals("Archivkonto", accounts.get(2).path("name").asText(), "all accounts include archive");
         check(!accounts.get(2).path("aktiv").asBoolean(), "active flag");
         check(accounts.get(2).path("offline").asBoolean(), "offline flag");
+    }
+
+    private static void syncsSelectedAccounts() throws Exception
+    {
+        FakeTransactionProvider transactions = new FakeTransactionProvider();
+        FakeAccountSynchronizer sync = new FakeAccountSynchronizer();
+        McpJsonRpcHandler handler = handler(transactions, new FakeTransferDraftWriter(), sync, true);
+
+        JsonNode response = MAPPER.readTree(handler.handle("""
+            {"jsonrpc":"2.0","id":13,"method":"tools/call","params":{
+              "name":"hibiscus_accounts_sync",
+              "arguments":{"accountIds":["active","daily"]}
+            }}
+            """));
+
+        check(!sync.all, "selected account sync");
+        checkEquals(List.of("active", "daily"), sync.accountIds(), "synced account ids");
+        JsonNode result = response.path("result").path("structuredContent");
+        check(result.path("gestartet").asBoolean(), "sync started");
+        checkEquals(2, result.path("count").asInt(), "sync result count");
     }
 
     private static void listsTransactionsWithFilters() throws Exception
@@ -318,6 +340,15 @@ public final class McpJsonRpcHandlerTests
             transactions), transactions, transferDraftWriter, () -> writeEnabled);
     }
 
+    private static McpJsonRpcHandler handler(ReportTransactionProvider transactions,
+                                             SepaTransferDraftWriter transferDraftWriter,
+                                             McpAccountSynchronizer accountSynchronizer,
+                                             boolean writeEnabled)
+    {
+        return new McpJsonRpcHandler(new ReportTemplateContextFactory(new FakeAccountProvider(transactions),
+            transactions), transactions, transferDraftWriter, accountSynchronizer, () -> writeEnabled);
+    }
+
     public record ExternalObject(String name)
     {
         public String getName()
@@ -404,6 +435,25 @@ public final class McpJsonRpcHandlerTests
                 12.34d, 123.45d, "Testumsatz", "", List.of("Testumsatz"), "Gegenkonto", "111",
                 "222", "Ueberweisung", "Food", List.of(new CategoryInfo("13", "Food", false, 0x123456)),
                 false, account));
+        }
+    }
+
+    private static final class FakeAccountSynchronizer implements McpAccountSynchronizer
+    {
+        private List<ReportAccount> accounts = List.of();
+        private boolean all;
+
+        @Override
+        public Map<String, Object> sync(List<ReportAccount> accounts, boolean all)
+        {
+            this.accounts = List.copyOf(accounts);
+            this.all = all;
+            return Map.of("gestartet", true, "all", all, "count", accounts.size());
+        }
+
+        private List<String> accountIds()
+        {
+            return accounts.stream().map(ReportAccount::getId).toList();
         }
     }
 
