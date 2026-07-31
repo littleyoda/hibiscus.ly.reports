@@ -4,7 +4,7 @@
         xsi:schemaLocation="http://www.willuhn.de/schema/jameica-plugin https://www.willuhn.de/schema/jameica-plugin-1.5.xsd"
         name="hibiscus.ly.reports" version="0.9.6" class="de.open4me.hibiscus.reports.Plugin">
 
-  <description>Interaktive Geldfluss- und Perioden-Auswertungen und Report-Generator für Hibiscus</description>
+  <description>Diverse Erweiterungen für Hibiscus: Interaktive Auswertungen, Report-Generator, Automatisierung, MCP-Server</description>
   <license>GPL-3.0</license>
   <url>https://www.open4me.de/hibiscus/hibiscus.ly.reports/hibiscus.ly.reports.zip</url>
 
@@ -18,7 +18,7 @@
   </extensions>
 
   <menu>
-    <item id="hibiscus.ly.reports.menu" name="Reports">
+    <item id="hibiscus.ly.reports.menu" name="Tools">
       <item id="hibiscus.ly.reports.reports" name="Reports..." action="de.open4me.hibiscus.reports.ui.OpenDynamicReportsViewAction" />
       <item id="hibiscus.ly.reports.automation" name="Automatisierung..." action="de.open4me.hibiscus.reports.ui.OpenAutomationViewAction" />
       <item id="hibiscus.ly.reports.mcp-settings" name="MCP-Server..." action="de.open4me.hibiscus.reports.ui.McpSettingsAction" />
