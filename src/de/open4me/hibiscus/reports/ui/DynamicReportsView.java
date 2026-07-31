@@ -34,7 +34,11 @@ import de.willuhn.jameica.gui.Action;
 import de.willuhn.jameica.gui.GUI;
 import de.willuhn.jameica.gui.dialogs.AbstractDialog;
 import de.willuhn.jameica.gui.dialogs.TextDialog;
+import de.willuhn.jameica.gui.input.TextInput;
+import de.willuhn.jameica.gui.parts.ButtonArea;
 import de.willuhn.jameica.gui.parts.PanelButton;
+import de.willuhn.jameica.gui.util.Container;
+import de.willuhn.jameica.gui.util.SimpleContainer;
 import de.willuhn.jameica.messaging.StatusBarMessage;
 import de.willuhn.jameica.system.Application;
 import de.willuhn.jameica.system.OperationCanceledException;
@@ -53,6 +57,8 @@ public class DynamicReportsView extends AbstractView
 
     private Composite root;
     private Combo reportCombo;
+    private Button renameButton;
+    private Button deleteButton;
     private Button editButton;
     private Button updateButton;
     private Button saveButton;
@@ -105,7 +111,7 @@ public class DynamicReportsView extends AbstractView
     {
         Composite toolbar = new Composite(parent, SWT.NONE);
         toolbar.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
-        toolbar.setLayout(new GridLayout(6, false));
+        toolbar.setLayout(new GridLayout(8, false));
 
         new Label(toolbar, SWT.NONE).setText("Report:");
         reportCombo = new Combo(toolbar, SWT.DROP_DOWN | SWT.READ_ONLY);
@@ -113,6 +119,8 @@ public class DynamicReportsView extends AbstractView
         reportCombo.addListener(SWT.Selection, event -> selectReportFromCombo());
 
         button(toolbar, "Neu", this::createNewReport);
+        renameButton = button(toolbar, "Umbenennen...", this::renameReport);
+        deleteButton = button(toolbar, "Loeschen", this::deleteReport);
         editButton = button(toolbar, "Bearbeiten", this::toggleEditMode);
         saveButton = button(toolbar, "Speichern", this::saveReport);
         updateButton = button(toolbar, "Vorschau aktualisieren", this::renderEditor);
@@ -381,6 +389,105 @@ public class DynamicReportsView extends AbstractView
         }
     }
 
+    private void renameReport()
+    {
+        if (selectedReport == null || !confirmDiscardChanges())
+            return;
+        try
+        {
+            PrefilledTextDialog dialog = new PrefilledTextDialog("Report umbenennen",
+                "Bitte einen Namen relativ zu reports/ eingeben, zum Beispiel konten oder gruppe/salden.",
+                "Reportname", selectedReport.displayName());
+            Object value = dialog.open();
+            if (value == null || value.toString().isBlank())
+                return;
+
+            DynamicReport renamed = repository.renameReport(selectedReport, value.toString());
+            selectedReport = renamed;
+            loadReports(renamed);
+            loadSelectedReport();
+            ReportsNavigationRefresher.refresh();
+            Application.getMessagingFactory().sendMessage(new StatusBarMessage(
+                "Report umbenannt: " + renamed.displayName(), StatusBarMessage.TYPE_SUCCESS));
+        }
+        catch (OperationCanceledException e)
+        {
+            // Dialog was cancelled.
+        }
+        catch (Exception e)
+        {
+            showError("Report konnte nicht umbenannt werden", e);
+        }
+    }
+
+    private void deleteReport()
+    {
+        if (selectedReport == null || !confirmDiscardChanges())
+            return;
+        try
+        {
+            DynamicReport report = selectedReport;
+            if (!Application.getCallback().askUser("Report \"" + report.displayName() + "\" loeschen?"))
+                return;
+
+            int index = reportCombo.getSelectionIndex();
+            repository.deleteReport(report);
+            editMode = false;
+            editButton.setText("Bearbeiten");
+            DynamicReport next = nextReportAfterDelete(index);
+            loadReports(next);
+            if (next == null)
+                clearSelection();
+            else
+                loadSelectedReport();
+            createContent();
+            render(currentTemplate);
+            ReportsNavigationRefresher.refresh();
+            root.layout(true, true);
+            Application.getMessagingFactory().sendMessage(new StatusBarMessage(
+                "Report geloescht: " + report.displayName(), StatusBarMessage.TYPE_SUCCESS));
+        }
+        catch (OperationCanceledException e)
+        {
+            // Dialog was cancelled.
+        }
+        catch (Exception e)
+        {
+            showError("Report konnte nicht geloescht werden", e);
+        }
+    }
+
+    private DynamicReport nextReportAfterDelete(int deletedIndex)
+    {
+        try
+        {
+            List<DynamicReport> remaining = repository.listReports().stream()
+                .sorted(java.util.Comparator.comparing(DynamicReport::displayName, String.CASE_INSENSITIVE_ORDER))
+                .toList();
+            if (remaining.isEmpty())
+                return null;
+            int index = Math.max(0, Math.min(deletedIndex, remaining.size() - 1));
+            return remaining.get(index);
+        }
+        catch (Exception e)
+        {
+            showError("Reports konnten nicht geladen werden", e);
+            return null;
+        }
+    }
+
+    private void clearSelection()
+    {
+        selectedReport = null;
+        currentTemplate = "";
+        savedTemplate = "";
+        lastRenderedHtml = "";
+        reportCombo.deselectAll();
+        setPreview("");
+        setErrors(List.of());
+        updateButtons();
+    }
+
     private void openHelp()
     {
         try
@@ -478,6 +585,10 @@ public class DynamicReportsView extends AbstractView
     private void updateButtons()
     {
         boolean haveReport = selectedReport != null;
+        if (renameButton != null && !renameButton.isDisposed())
+            renameButton.setEnabled(haveReport);
+        if (deleteButton != null && !deleteButton.isDisposed())
+            deleteButton.setEnabled(haveReport);
         if (editButton != null && !editButton.isDisposed())
             editButton.setEnabled(haveReport);
         if (updateButton != null && !updateButton.isDisposed())
@@ -558,5 +669,53 @@ public class DynamicReportsView extends AbstractView
         if (name.isBlank() || "-".equals(name))
             name = "report";
         return ExportFileNames.withExtension(name, ".html");
+    }
+
+    private static final class PrefilledTextDialog extends AbstractDialog
+    {
+        private static final int WINDOW_WIDTH = 500;
+
+        private final String text;
+        private final TextInput input;
+        private Object value;
+
+        private PrefilledTextDialog(String title, String text, String label, String initialValue)
+        {
+            super(AbstractDialog.POSITION_CENTER);
+            setTitle(title);
+            setSize(WINDOW_WIDTH, SWT.DEFAULT);
+            this.text = text;
+            this.input = new TextInput(initialValue == null ? "" : initialValue);
+            this.input.setName(label);
+        }
+
+        @Override
+        protected void paint(Composite parent) throws Exception
+        {
+            Container container = new SimpleContainer(parent);
+            if (text != null && !text.isBlank())
+                container.addText(text, true);
+            container.addInput(input);
+
+            ButtonArea buttons = new ButtonArea();
+            buttons.addButton(Application.getI18n().tr("Uebernehmen"), new Action()
+            {
+                @Override
+                public void handleAction(Object context) throws ApplicationException
+                {
+                    value = input.getValue();
+                    close();
+                }
+            }, null, true, "ok.png");
+            buttons.addButton(new de.willuhn.jameica.gui.internal.buttons.Cancel());
+            container.addButtonArea(buttons);
+            getShell().setMinimumSize(getShell().computeSize(WINDOW_WIDTH, SWT.DEFAULT));
+        }
+
+        @Override
+        protected Object getData() throws Exception
+        {
+            return value;
+        }
     }
 }

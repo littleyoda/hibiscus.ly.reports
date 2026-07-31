@@ -358,7 +358,7 @@ public final class DynamicReportRepository
 
     public String read(DynamicReport report) throws IOException
     {
-        return Files.readString(report.path(), StandardCharsets.UTF_8);
+        return Files.readString(checkedReportPath(report.path()), StandardCharsets.UTF_8);
     }
 
     public void write(DynamicReport report, String content) throws IOException
@@ -375,6 +375,27 @@ public final class DynamicReportRepository
         Files.createDirectories(file.getParent());
         Files.writeString(file, EXAMPLE_REPORT, StandardCharsets.UTF_8);
         return toReport(file);
+    }
+
+    public DynamicReport renameReport(DynamicReport report, String newName) throws IOException
+    {
+        Path source = checkedReportPath(report.path());
+        Path target = checkedReportPath(reportPath(newName));
+        if (source.equals(target))
+            return toReport(source);
+        if (Files.exists(target))
+            throw new IOException("Report existiert bereits: " + reportDirectory.relativize(target));
+        Files.createDirectories(target.getParent());
+        Files.move(source, target);
+        cleanupEmptyParents(source.getParent());
+        return toReport(target);
+    }
+
+    public void deleteReport(DynamicReport report) throws IOException
+    {
+        Path file = checkedReportPath(report.path());
+        Files.deleteIfExists(file);
+        cleanupEmptyParents(file.getParent());
     }
 
     private Path reportPath(String name) throws IOException
@@ -412,6 +433,27 @@ public final class DynamicReportRepository
         int dot = relative.lastIndexOf('.');
         String display = dot > 0 ? relative.substring(0, dot) : relative;
         return new DynamicReport(path, display);
+    }
+
+    private void cleanupEmptyParents(Path start) throws IOException
+    {
+        Path directory = reportDirectory.toAbsolutePath().normalize();
+        Path current = start == null ? null : start.toAbsolutePath().normalize();
+        while (current != null && current.startsWith(directory) && !current.equals(directory))
+        {
+            if (!Files.isDirectory(current))
+            {
+                current = current.getParent();
+                continue;
+            }
+            try (Stream<Path> children = Files.list(current))
+            {
+                if (children.findAny().isPresent())
+                    break;
+            }
+            Files.deleteIfExists(current);
+            current = current.getParent();
+        }
     }
 
     private static boolean isHtml(Path path)

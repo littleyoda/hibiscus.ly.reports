@@ -33,6 +33,8 @@ public final class DynamicReportTests
             createsNewReportsBelowReportsDirectory();
             rejectsInvalidNewReportPaths();
             writesReportContent();
+            renamesReportsSafely();
+            deletesReportsSafely();
             restrictsResourceLoadingToBaseDirectory();
             rendersReportWithExtendsAndAccountProxy();
             rendersExplicitActiveAndAllAccountProxyLists();
@@ -110,6 +112,44 @@ public final class DynamicReportTests
         repository.write(report, "<h1>Gespeichert</h1>");
 
         checkEquals("<h1>Gespeichert</h1>", repository.read(report), "saved report content");
+    }
+
+    private static void renamesReportsSafely() throws Exception
+    {
+        Path base = Files.createTempDirectory("hibiscus-reports-rename");
+        DynamicReportRepository repository = new DynamicReportRepository(base);
+        DynamicReport report = repository.createReport("old");
+        repository.write(report, "content");
+
+        DynamicReport renamed = repository.renameReport(report, "folder/new");
+
+        checkEquals("folder/new", renamed.displayName(), "renamed report name");
+        check(!Files.exists(base.resolve("reports/old.html")), "old report removed");
+        checkEquals("content", repository.read(renamed), "renamed report content");
+        checkEquals(List.of("folder/new"), repository.listReports().stream()
+            .map(DynamicReport::displayName).toList(), "renamed report list");
+
+        repository.createReport("existing");
+        expectIOException(() -> repository.renameReport(renamed, "existing"), "rename duplicate report");
+        expectIOException(() -> repository.renameReport(renamed, "../outside"), "rename parent traversal");
+        expectIOException(() -> repository.renameReport(renamed, base.resolve("absolute").toString()),
+            "rename absolute path");
+    }
+
+    private static void deletesReportsSafely() throws Exception
+    {
+        Path base = Files.createTempDirectory("hibiscus-reports-delete");
+        DynamicReportRepository repository = new DynamicReportRepository(base);
+        DynamicReport report = repository.createReport("folder/delete-me");
+
+        repository.deleteReport(report);
+
+        check(!Files.exists(base.resolve("reports/folder/delete-me.html")), "deleted report file");
+        check(!Files.exists(base.resolve("reports/folder")), "empty report directory removed");
+        check(repository.listReports().isEmpty(), "deleted report removed from list");
+        repository.deleteReport(report);
+        expectIOException(() -> repository.deleteReport(new DynamicReport(base.resolve("outside.html"), "outside")),
+            "delete outside reports directory");
     }
 
     private static void restrictsResourceLoadingToBaseDirectory() throws Exception
