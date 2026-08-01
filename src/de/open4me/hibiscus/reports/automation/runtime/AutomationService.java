@@ -44,7 +44,6 @@ public final class AutomationService
         failOpenRuntimeRunsOnStart(
             "Jameica/Hibiscus wurde neu gestartet; offener Automation-Lauf wurde als Fehler abgeschlossen.");
         dialogGate.start();
-        handleMissedTriggersOnStart();
         scheduler.start();
     }
 
@@ -103,16 +102,4 @@ public final class AutomationService
         }
     }
 
-    private void handleMissedTriggersOnStart() throws ApplicationException
-    {
-        try
-        {
-            scheduler.handleMissedTriggersOnStart();
-        }
-        catch (Exception e)
-        {
-            throw new ApplicationException("Verpasste Automation-Trigger konnten nicht verarbeitet werden: "
-                + e.getMessage(), e);
-        }
-    }
 }

@@ -7,10 +7,15 @@ import javax.script.ScriptEngine;
 
 import org.openjdk.nashorn.api.scripting.NashornScriptEngineFactory;
 
+import de.open4me.hibiscus.reports.automation.model.Automation;
+import de.open4me.hibiscus.reports.automation.model.AutomationTrigger;
+import de.open4me.hibiscus.reports.automation.model.MissedTriggerPolicy;
+import de.open4me.hibiscus.reports.automation.model.RunMode;
 import de.open4me.hibiscus.reports.automation.runtime.AutomationSchedule;
 import de.open4me.hibiscus.reports.automation.runtime.AutomationScheduleSpec;
 import de.open4me.hibiscus.reports.automation.runtime.AutomationScheduleSpec.IntervalUnit;
 import de.open4me.hibiscus.reports.automation.runtime.AutomationScheduleSpec.Type;
+import de.open4me.hibiscus.reports.automation.runtime.AutomationScheduler;
 import de.open4me.hibiscus.reports.data.ReportAccountProvider;
 import de.open4me.hibiscus.reports.data.ReportAccountsProxy;
 import de.open4me.hibiscus.reports.model.ReportAccount;
@@ -34,8 +39,11 @@ public final class AutomationCoreTests
             keepsAccountTypeForDepotFiltering();
             keepsBackendClassForAccessPathFiltering();
             computesNextQuartzCronRun();
+            describesExpertCronExpressions();
             createsScheduleExpressionsFromPresets();
             detectsSchedulePresetsFromExpressions();
+            detectsMissedStartupActions();
+            delaysMissedStartupHandling();
             blocksDirectJavaClassAccess();
         }
         catch (Exception e)
@@ -109,6 +117,24 @@ public final class AutomationCoreTests
         LocalDateTime next = schedule.next("0 0 8 * * ?", LocalDateTime.of(2026, 7, 30, 7, 0));
 
         checkEquals(LocalDateTime.of(2026, 7, 30, 8, 0), next.withNano(0), "next cron execution");
+
+        LocalDateTime nextDay = schedule.next("0 30 7 * * ?", LocalDateTime.of(2026, 7, 31, 7, 40));
+
+        checkEquals(LocalDateTime.of(2026, 8, 1, 7, 30), nextDay.withNano(0),
+            "next daily cron execution after missed time");
+    }
+
+    private static void describesExpertCronExpressions()
+    {
+        AutomationSchedule schedule = new AutomationSchedule();
+
+        String description = schedule.describe("0 23 * ? * MON-FRI *");
+
+        check(description.contains("23"), "cron description contains minute");
+        check(description.contains("Montag"), "cron description contains start weekday");
+        check(description.contains("Freitag"), "cron description contains end weekday");
+        checkEquals(description, AutomationScheduleSpec.expert("0 23 * ? * MON-FRI *").describe(),
+            "expert schedule uses cron descriptor");
     }
 
     private static void createsScheduleExpressionsFromPresets()
@@ -139,6 +165,39 @@ public final class AutomationCoreTests
             "unknown expression uses expert mode");
     }
 
+    private static void detectsMissedStartupActions()
+    {
+        LocalDateTime now = LocalDateTime.of(2026, 7, 31, 7, 40);
+        AutomationTrigger due = trigger(true, LocalDateTime.of(2026, 7, 31, 7, 30));
+        AutomationTrigger future = trigger(true, LocalDateTime.of(2026, 8, 1, 7, 30));
+
+        checkEquals(AutomationScheduler.MissedStartupAction.NACHHOLEN,
+            AutomationScheduler.missedStartupAction(automation(true, MissedTriggerPolicy.NACHHOLEN), due, now),
+            "due catch-up action");
+        checkEquals(AutomationScheduler.MissedStartupAction.NACHFRAGEN,
+            AutomationScheduler.missedStartupAction(automation(true, MissedTriggerPolicy.NACHFRAGEN), due, now),
+            "due ask action");
+        checkEquals(AutomationScheduler.MissedStartupAction.NONE,
+            AutomationScheduler.missedStartupAction(automation(true, MissedTriggerPolicy.IGNORIEREN), due, now),
+            "due ignore action");
+        checkEquals(AutomationScheduler.MissedStartupAction.NONE,
+            AutomationScheduler.missedStartupAction(automation(true, MissedTriggerPolicy.NACHHOLEN), future, now),
+            "future run is not missed");
+        checkEquals(AutomationScheduler.MissedStartupAction.NONE,
+            AutomationScheduler.missedStartupAction(automation(false, MissedTriggerPolicy.NACHHOLEN), due, now),
+            "inactive automation is not missed");
+        checkEquals(AutomationScheduler.MissedStartupAction.NONE,
+            AutomationScheduler.missedStartupAction(automation(true, MissedTriggerPolicy.NACHHOLEN),
+                trigger(false, LocalDateTime.of(2026, 7, 31, 7, 30)), now),
+            "inactive trigger is not missed");
+    }
+
+    private static void delaysMissedStartupHandling()
+    {
+        checkEquals(30, AutomationScheduler.STARTUP_MISSED_TRIGGER_DELAY_SECONDS,
+            "missed startup trigger delay");
+    }
+
     private static void blocksDirectJavaClassAccess() throws Exception
     {
         ScriptEngine engine = new NashornScriptEngineFactory().getScriptEngine(className -> false);
@@ -164,6 +223,17 @@ public final class AutomationCoreTests
     {
         if (!java.util.Objects.equals(expected, actual))
             throw new AssertionError(message + " expected <" + expected + "> but was <" + actual + ">");
+    }
+
+    private static Automation automation(boolean active, MissedTriggerPolicy missedPolicy)
+    {
+        return new Automation("automation-1", "Automation", "", active, RunMode.SINGLE, missedPolicy, "", 100);
+    }
+
+    private static AutomationTrigger trigger(boolean active, LocalDateTime nextRun)
+    {
+        return new AutomationTrigger("trigger-1", "automation-1", "Zeitplan", active, "cron",
+            "0 30 7 * * ?", nextRun, null);
     }
 
     private static final class FakeAccountProvider implements ReportAccountProvider

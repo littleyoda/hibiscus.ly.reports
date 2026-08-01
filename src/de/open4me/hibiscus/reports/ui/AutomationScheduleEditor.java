@@ -37,6 +37,7 @@ public final class AutomationScheduleEditor extends Composite
     private final Spinner intervalAmount;
     private final Combo intervalUnit;
     private final Text expert;
+    private final Text descriptionPreview;
     private final Text cronPreview;
     private final Text nextPreview;
     private final Text error;
@@ -45,6 +46,7 @@ public final class AutomationScheduleEditor extends Composite
     private final EditorRow monthRow;
     private final EditorRow intervalRow;
     private final EditorRow expertRow;
+    private final EditorRow descriptionRow;
     private final EditorRow errorRow;
     private boolean refreshing;
 
@@ -86,6 +88,10 @@ public final class AutomationScheduleEditor extends Composite
         expertRow = row("Cron-Ausdruck", 1);
         expert = new Text(expertRow.content, SWT.BORDER);
         expert.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+
+        descriptionRow = row("Beschreibung", 1);
+        descriptionPreview = new Text(descriptionRow.content, SWT.BORDER | SWT.READ_ONLY | SWT.WRAP);
+        descriptionPreview.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
 
         cronPreview = readonlyText("Cron");
         nextPreview = readonlyText("Naechster Lauf");
@@ -243,6 +249,7 @@ public final class AutomationScheduleEditor extends Composite
             setVisible(monthRow, selectedType == Type.MONTHLY);
             setVisible(intervalRow, selectedType == Type.INTERVAL);
             setVisible(expertRow, selectedType == Type.EXPERT);
+            setVisible(descriptionRow, selectedType == Type.EXPERT);
             monthDay.setEnabled(monthMode.getSelectionIndex() == 0);
             intervalAmount.setMaximum(intervalUnit.getSelectionIndex() == 1 ? 24 : 59);
             if (intervalAmount.getSelection() > intervalAmount.getMaximum())
@@ -252,6 +259,7 @@ public final class AutomationScheduleEditor extends Composite
             if (selectedType == Type.EXPERT && expression.isBlank())
                 throw new IllegalArgumentException("Cron-Ausdruck darf im Expertenmodus nicht leer sein.");
             cronPreview.setText(expression);
+            descriptionPreview.setText(selectedType == Type.EXPERT ? schedule.describe(expression) : "");
             if (expression.isBlank())
                 nextPreview.setText("");
             else
@@ -265,6 +273,7 @@ public final class AutomationScheduleEditor extends Composite
         catch (Exception e)
         {
             cronPreview.setText("");
+            descriptionPreview.setText("");
             nextPreview.setText("");
             error.setText(e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage());
             setVisible(errorRow, true);

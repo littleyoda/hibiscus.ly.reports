@@ -23,6 +23,7 @@ public final class ReportsNavigationExtensionTests
         {
             buildsNestedReportNavigation();
             buildsNestedAutomationNavigation();
+            detectsAutomationEditorStateChanges();
         }
         catch (Exception e)
         {
@@ -94,6 +95,28 @@ public final class ReportsNavigationExtensionTests
         List<NavigationItem> depotChildren = children(syncChildren.get(1));
         checkEquals(List.of("scalable"), names(depotChildren), "depot automation children");
         check(depotChildren.get(0).getAction() != null, "deep automation has action");
+    }
+
+    private static void detectsAutomationEditorStateChanges()
+    {
+        AutomationEditorState saved = new AutomationEditorState("Name", "Beschreibung", "nachholen", true,
+            " 0 30 7 * * ? ", "log.info('x');");
+        AutomationEditorState same = new AutomationEditorState("Name", "Beschreibung", "nachholen", true,
+            "0 30 7 * * ?", "log.info('x');");
+
+        check(!same.differsFrom(saved), "same editor state is not dirty");
+        check(new AutomationEditorState("Neuer Name", "Beschreibung", "nachholen", true,
+            "0 30 7 * * ?", "log.info('x');").differsFrom(saved), "name change is dirty");
+        check(new AutomationEditorState("Name", "Andere Beschreibung", "nachholen", true,
+            "0 30 7 * * ?", "log.info('x');").differsFrom(saved), "description change is dirty");
+        check(new AutomationEditorState("Name", "Beschreibung", "ignorieren", true,
+            "0 30 7 * * ?", "log.info('x');").differsFrom(saved), "missed policy change is dirty");
+        check(new AutomationEditorState("Name", "Beschreibung", "nachholen", false,
+            "0 30 7 * * ?", "log.info('x');").differsFrom(saved), "schedule active change is dirty");
+        check(new AutomationEditorState("Name", "Beschreibung", "nachholen", true,
+            "0 0 8 * * ?", "log.info('x');").differsFrom(saved), "schedule change is dirty");
+        check(new AutomationEditorState("Name", "Beschreibung", "nachholen", true,
+            "0 30 7 * * ?", "log.info('y');").differsFrom(saved), "script change is dirty");
     }
 
     private static DynamicReport report(String displayName)

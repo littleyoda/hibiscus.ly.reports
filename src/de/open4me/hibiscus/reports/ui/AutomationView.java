@@ -33,10 +33,14 @@ import de.open4me.hibiscus.reports.automation.runtime.AutomationScheduleSpec;
 import de.open4me.hibiscus.reports.automation.runtime.AutomationService;
 import de.open4me.hibiscus.reports.automation.runtime.AutomationJsonTransfer;
 import de.open4me.hibiscus.reports.automation.sql.AutomationRepository;
+import de.willuhn.jameica.gui.Action;
 import de.willuhn.jameica.gui.AbstractView;
 import de.willuhn.jameica.gui.GUI;
+import de.willuhn.jameica.gui.dialogs.AbstractDialog;
+import de.willuhn.jameica.gui.parts.ButtonArea;
 import de.willuhn.jameica.messaging.StatusBarMessage;
 import de.willuhn.jameica.system.Application;
+import de.willuhn.jameica.system.OperationCanceledException;
 import de.willuhn.util.ApplicationException;
 
 public final class AutomationView extends AbstractView
@@ -58,12 +62,24 @@ public final class AutomationView extends AbstractView
     private Text script;
     private Table runsTable;
     private Text runLogs;
+    private Button saveButton;
+    private Label dirtyLabel;
     private TabItem historyTab;
     private Composite decisionArea;
     private Label decisionText;
     private Button catchUpDecision;
     private Button ignoreDecision;
     private AutomationDecision selectedDecision;
+    private AutomationEditorState savedState = AutomationEditorState.empty();
+    private String nameText = "";
+    private boolean loading;
+
+    private enum UnsavedDecision
+    {
+        SAVE,
+        DISCARD,
+        CANCEL
+    }
 
     @Override
     public void bind() throws Exception
@@ -81,6 +97,25 @@ public final class AutomationView extends AbstractView
         loadAutomations(initial);
     }
 
+    @Override
+    public void unbind() throws ApplicationException
+    {
+        try
+        {
+            if (!resolveUnsavedChanges())
+                throw new ApplicationException("Ungespeicherte Änderungen.");
+        }
+        catch (ApplicationException e)
+        {
+            throw e;
+        }
+        catch (Exception e)
+        {
+            throw new ApplicationException("Ungespeicherte Änderungen konnten nicht verarbeitet werden: "
+                + e.getMessage(), e);
+        }
+    }
+
     private void createList(Composite parent)
     {
         Composite row = new Composite(parent, SWT.NONE);
@@ -92,6 +127,7 @@ public final class AutomationView extends AbstractView
         comboData.widthHint = 420;
         automationCombo.setLayoutData(comboData);
         automationCombo.addListener(SWT.Selection, event -> selectFromCombo());
+        automationCombo.addListener(SWT.Modify, event -> markNameDirty());
         fixedButton(row, "Neu", this::newAutomation);
         fixedButton(row, "Kopieren", this::copyAutomation);
         fixedButton(row, "Loeschen", this::deleteAutomation);
@@ -125,11 +161,14 @@ public final class AutomationView extends AbstractView
 
         description = text(form, "Beschreibung", SWT.BORDER | SWT.MULTI | SWT.WRAP | SWT.V_SCROLL);
         height(description, 50);
+        description.addListener(SWT.Modify, event -> markDirty());
         missed = combo(form, "Verpasste Trigger", new String[] { "ignorieren", "nachholen", "nachfragen" });
+        missed.addListener(SWT.Selection, event -> markDirty());
         label(form, "");
         scheduleActive = new Button(form, SWT.CHECK);
         scheduleActive.setText("Zeitsteuerung aktiv");
         scheduleActive.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+        scheduleActive.addListener(SWT.Selection, event -> markDirty());
         label(form, "Zeitplan");
         Composite scheduleRow = new Composite(form, SWT.NONE);
         scheduleRow.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
@@ -141,13 +180,19 @@ public final class AutomationView extends AbstractView
         editSchedule.addListener(SWT.Selection, event -> editSchedule());
         script = text(form, "Script", SWT.BORDER | SWT.MULTI | SWT.WRAP | SWT.V_SCROLL);
         height(script, 320);
+        script.addListener(SWT.Modify, event -> markDirty());
 
         Composite buttons = new Composite(parent, SWT.NONE);
         buttons.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
-        buttons.setLayout(new GridLayout(3, true));
-        button(buttons, "Speichern", this::save);
+        buttons.setLayout(new GridLayout(4, false));
+        saveButton = button(buttons, "Speichern", this::save);
+        dirtyLabel = new Label(buttons, SWT.NONE);
+        dirtyLabel.setText("Ungespeicherte Änderungen");
+        dirtyLabel.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
         button(buttons, "Manuell ausfuehren", () -> run(false));
         button(buttons, "Testlauf", () -> run(true));
+        savedState = currentState();
+        updateDirtyState();
     }
 
     private void createHistoryTab(TabFolder tabs)
@@ -184,7 +229,7 @@ public final class AutomationView extends AbstractView
         Composite buttons = new Composite(tab, SWT.NONE);
         buttons.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
         buttons.setLayout(new GridLayout(1, true));
-        button(buttons, "Aktualisieren", () -> loadAutomations(selected));
+        button(buttons, "Aktualisieren", this::reloadSelectedAutomation);
     }
 
     private static Composite tab(TabFolder folder, String title)
@@ -270,6 +315,7 @@ public final class AutomationView extends AbstractView
     {
         try
         {
+            loading = true;
             automations = repository.listAutomations();
             automationCombo.removeAll();
             for (Automation automation : automations)
@@ -281,16 +327,19 @@ public final class AutomationView extends AbstractView
             {
                 automationCombo.select(index);
                 selected = automations.get(index);
+                loading = false;
                 show(selected);
             }
             else
             {
                 selected = null;
+                loading = false;
                 show(emptyAutomation());
             }
         }
         catch (Exception e)
         {
+            loading = false;
             throw new RuntimeException(e);
         }
     }
@@ -309,16 +358,36 @@ public final class AutomationView extends AbstractView
 
     private void selectFromCombo()
     {
+        if (loading)
+            return;
         int index = automationCombo.getSelectionIndex();
         if (index >= 0 && index < automations.size())
         {
-            selected = automations.get(index);
-            show(selected);
+            Automation next = automations.get(index);
+            if (selected != null && selected.id() != null && selected.id().equals(next.id()))
+                return;
+            try
+            {
+                if (!resolveUnsavedChanges())
+                {
+                    restoreComboSelection();
+                    return;
+                }
+                selected = next;
+                show(selected);
+            }
+            catch (Exception e)
+            {
+                restoreComboSelection();
+                throw new RuntimeException(e);
+            }
         }
     }
 
     private void show(Automation automation)
     {
+        loading = true;
+        nameText = automation.name();
         automationCombo.setText(automation.name());
         description.setText(automation.description());
         scheduleActive.setSelection(false);
@@ -341,6 +410,12 @@ public final class AutomationView extends AbstractView
         catch (Exception ignored)
         {
         }
+        finally
+        {
+            loading = false;
+        }
+        savedState = currentState();
+        updateDirtyState();
         refreshHistory();
     }
 
@@ -365,26 +440,149 @@ public final class AutomationView extends AbstractView
     {
         scheduleExpression = expression == null ? "" : expression.trim();
         scheduleSummary.setText(AutomationScheduleSpec.fromExpression(scheduleExpression).describe());
+        markDirty();
+    }
+
+    private void markNameDirty()
+    {
+        if (loading)
+            return;
+        int index = automationCombo.getSelectionIndex();
+        if (index >= 0 && index < automations.size()
+            && automationCombo.getText().equals(automations.get(index).name()))
+            return;
+        nameText = automationCombo.getText();
+        updateDirtyState();
+    }
+
+    private void markDirty()
+    {
+        if (!loading)
+            updateDirtyState();
+    }
+
+    private boolean hasUnsavedChanges()
+    {
+        return currentState().differsFrom(savedState);
+    }
+
+    private void updateDirtyState()
+    {
+        boolean dirty = hasUnsavedChanges();
+        if (saveButton != null && !saveButton.isDisposed())
+            saveButton.setEnabled(dirty);
+        if (dirtyLabel != null && !dirtyLabel.isDisposed())
+        {
+            dirtyLabel.setVisible(dirty);
+            GridData data = (GridData) dirtyLabel.getLayoutData();
+            data.exclude = !dirty;
+            dirtyLabel.getParent().layout(true, true);
+        }
+    }
+
+    private AutomationEditorState currentState()
+    {
+        if (automationCombo == null || automationCombo.isDisposed())
+            return AutomationEditorState.empty();
+        return new AutomationEditorState(nameText,
+            description == null || description.isDisposed() ? "" : description.getText(),
+            missed == null || missed.isDisposed() ? "" : missed.getText(),
+            scheduleActive != null && !scheduleActive.isDisposed() && scheduleActive.getSelection(),
+            scheduleExpression,
+            script == null || script.isDisposed() ? "" : script.getText());
+    }
+
+    private boolean resolveUnsavedChanges() throws Exception
+    {
+        if (!hasUnsavedChanges())
+            return true;
+        UnsavedDecision decision;
+        try
+        {
+            decision = new UnsavedChangesDialog().open();
+        }
+        catch (OperationCanceledException e)
+        {
+            return false;
+        }
+        if (decision == UnsavedDecision.SAVE)
+        {
+            saveCurrent();
+            ReportsNavigationRefresher.refresh();
+            Application.getMessagingFactory().sendMessage(new StatusBarMessage(
+                "Automation gespeichert.", StatusBarMessage.TYPE_SUCCESS));
+            return true;
+        }
+        if (decision == UnsavedDecision.DISCARD)
+        {
+            discardCurrentChanges();
+            return true;
+        }
+        return false;
+    }
+
+    private void discardCurrentChanges()
+    {
+        if (selected == null || selected.id() == null)
+            show(emptyAutomation());
+        else
+            loadAutomations(selected);
+    }
+
+    private void restoreComboSelection()
+    {
+        loading = true;
+        try
+        {
+            automationCombo.setText(nameText);
+        }
+        finally
+        {
+            loading = false;
+            updateDirtyState();
+        }
     }
 
     private void newAutomation()
     {
-        selected = null;
-        show(emptyAutomation());
+        try
+        {
+            if (!resolveUnsavedChanges())
+                return;
+            selected = null;
+            show(emptyAutomation());
+        }
+        catch (Exception e)
+        {
+            throw new RuntimeException(e);
+        }
     }
 
     private void copyAutomation()
     {
-        selected = null;
-        automationCombo.setText(automationCombo.getText() + " Kopie");
+        try
+        {
+            if (!resolveUnsavedChanges())
+                return;
+            selected = null;
+            automationCombo.setText(automationCombo.getText() + " Kopie");
+            nameText = automationCombo.getText();
+            updateDirtyState();
+        }
+        catch (Exception e)
+        {
+            throw new RuntimeException(e);
+        }
     }
 
     private void deleteAutomation()
     {
-        if (selected == null || selected.id() == null)
-            return;
         try
         {
+            if (!resolveUnsavedChanges())
+                return;
+            if (selected == null || selected.id() == null)
+                return;
             if (!Application.getCallback().askUser("Automation \"" + selected.name() + "\" loeschen?"))
                 return;
             repository.deleteAutomation(selected.id());
@@ -399,6 +597,15 @@ public final class AutomationView extends AbstractView
 
     private void importAutomation()
     {
+        try
+        {
+            if (!resolveUnsavedChanges())
+                return;
+        }
+        catch (Exception e)
+        {
+            throw new RuntimeException(e);
+        }
         FileDialog dialog = new FileDialog(GUI.getShell(), SWT.OPEN);
         dialog.setText("Automation importieren");
         dialog.setFilterNames(new String[] { "Automation JSON (*.json)" });
@@ -413,6 +620,20 @@ public final class AutomationView extends AbstractView
             ReportsNavigationRefresher.refresh();
             Application.getMessagingFactory().sendMessage(new StatusBarMessage(
                 "Automation importiert.", StatusBarMessage.TYPE_SUCCESS));
+        }
+        catch (Exception e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private void reloadSelectedAutomation()
+    {
+        try
+        {
+            if (!resolveUnsavedChanges())
+                return;
+            loadAutomations(selected);
         }
         catch (Exception e)
         {
@@ -456,12 +677,7 @@ public final class AutomationView extends AbstractView
     {
         try
         {
-            Automation saved = repository.saveAutomation(new Automation(selected == null ? null : selected.id(),
-                automationCombo.getText(), description.getText(), true, RunMode.SINGLE,
-                MissedTriggerPolicy.parse(missed.getText()), script.getText(), 100));
-            savePrimaryTrigger(saved);
-            selected = saved;
-            loadAutomations(saved);
+            saveCurrent();
             ReportsNavigationRefresher.refresh();
             Application.getMessagingFactory().sendMessage(new StatusBarMessage(
                 "Automation gespeichert.", StatusBarMessage.TYPE_SUCCESS));
@@ -470,6 +686,19 @@ public final class AutomationView extends AbstractView
         {
             throw new RuntimeException(e);
         }
+    }
+
+    private Automation saveCurrent() throws Exception
+    {
+        Automation saved = repository.saveAutomation(new Automation(selected == null ? null : selected.id(),
+            nameText, description.getText(), true, RunMode.SINGLE,
+            MissedTriggerPolicy.parse(missed.getText()), script.getText(), 100));
+        savePrimaryTrigger(saved);
+        selected = saved;
+        loadAutomations(saved);
+        savedState = currentState();
+        updateDirtyState();
+        return saved;
     }
 
     private void savePrimaryTrigger(Automation automation) throws Exception
@@ -500,8 +729,12 @@ public final class AutomationView extends AbstractView
     {
         try
         {
-            if (selected == null || selected.id() == null)
-                save();
+            if (hasUnsavedChanges() || selected == null || selected.id() == null)
+            {
+                Application.getMessagingFactory().sendMessage(new StatusBarMessage(
+                    "Bitte speichern Sie die Änderungen vor dem Ausführen.", StatusBarMessage.TYPE_INFO));
+                return;
+            }
             Automation current = repository.getAutomation(selected.id());
             AutomationService.get().runManual(current, testRun, () -> refreshHistoryAsync(true));
             Application.getMessagingFactory().sendMessage(new StatusBarMessage(
@@ -800,5 +1033,64 @@ public final class AutomationView extends AbstractView
     {
         return new Automation(null, "Neue Automation", "", true, RunMode.SINGLE,
             MissedTriggerPolicy.IGNORIEREN, "", 100);
+    }
+
+    private static final class UnsavedChangesDialog extends AbstractDialog<UnsavedDecision>
+    {
+        private UnsavedDecision result = UnsavedDecision.CANCEL;
+
+        private UnsavedChangesDialog()
+        {
+            super(POSITION_CENTER);
+            setTitle("Ungespeicherte Änderungen");
+            setSize(560, 180);
+        }
+
+        @Override
+        protected void paint(Composite parent) throws Exception
+        {
+            parent.setLayout(new GridLayout(1, false));
+
+            Label text = new Label(parent, SWT.WRAP);
+            text.setText("Es gibt ungespeicherte Änderungen. Was soll mit diesen Änderungen passieren?");
+            text.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+
+            ButtonArea buttons = new ButtonArea();
+            buttons.addButton("Speichern", new Action()
+            {
+                @Override
+                public void handleAction(Object context) throws ApplicationException
+                {
+                    result = UnsavedDecision.SAVE;
+                    close();
+                }
+            }, null, true, "ok.png");
+            buttons.addButton("Verwerfen", new Action()
+            {
+                @Override
+                public void handleAction(Object context) throws ApplicationException
+                {
+                    result = UnsavedDecision.DISCARD;
+                    close();
+                }
+            }, null, false, "edit-delete.png");
+            buttons.addButton("Abbrechen", new Action()
+            {
+                @Override
+                public void handleAction(Object context) throws ApplicationException
+                {
+                    result = UnsavedDecision.CANCEL;
+                    close();
+                }
+            }, null, false, "process-stop.png");
+            buttons.paint(parent);
+            getShell().setMinimumSize(560, 180);
+        }
+
+        @Override
+        protected UnsavedDecision getData()
+        {
+            return result;
+        }
     }
 }
