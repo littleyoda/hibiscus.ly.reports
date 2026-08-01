@@ -154,7 +154,7 @@ public final class AutomationScheduleSpec
             case INTERVAL -> intervalUnit == IntervalUnit.HOURS
                 ? "Alle " + intervalAmount + " Stunde" + (intervalAmount == 1 ? "" : "n")
                 : "Alle " + intervalAmount + " Minute" + (intervalAmount == 1 ? "" : "n");
-            case EXPERT -> expertExpression.isBlank() ? "Experten-Cron" : "Experten-Cron: " + expertExpression;
+            case EXPERT -> expertExpression.isBlank() ? "Experten-Cron" : expertDescription(expertExpression);
         };
     }
 
@@ -220,6 +220,19 @@ public final class AutomationScheduleSpec
     private String time()
     {
         return String.format("%02d:%02d Uhr", hour, minute);
+    }
+
+    private static String expertDescription(String expression)
+    {
+        try
+        {
+            String description = new AutomationSchedule().describe(expression);
+            return description.isBlank() ? "Experten-Cron: " + expression : description;
+        }
+        catch (Exception e)
+        {
+            return "Experten-Cron: " + expression;
+        }
     }
 
     private static String shortDay(DayOfWeek day)

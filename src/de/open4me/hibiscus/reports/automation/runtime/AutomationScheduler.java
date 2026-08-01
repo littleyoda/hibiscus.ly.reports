@@ -1,6 +1,7 @@
 package de.open4me.hibiscus.reports.automation.runtime;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -15,6 +16,16 @@ import de.willuhn.logging.Logger;
 
 public final class AutomationScheduler
 {
+    public static final int STARTUP_MISSED_TRIGGER_DELAY_SECONDS = 30;
+    private static final int TICK_DELAY_SECONDS = 60;
+
+    public enum MissedStartupAction
+    {
+        NONE,
+        NACHHOLEN,
+        NACHFRAGEN
+    }
+
     private final AutomationRepository repository;
     private final AutomationDispatcher dispatcher;
     private final AutomationSchedule schedule = new AutomationSchedule();
@@ -35,30 +46,49 @@ public final class AutomationScheduler
             thread.setDaemon(true);
             return thread;
         });
-        executor.scheduleWithFixedDelay(this::tickSafely, 10, 60, TimeUnit.SECONDS);
+        LocalDateTime startedAt = LocalDateTime.now();
+        executor.schedule(() -> startAfterStartupDelaySafely(startedAt), STARTUP_MISSED_TRIGGER_DELAY_SECONDS,
+            TimeUnit.SECONDS);
     }
 
     public void handleMissedTriggersOnStart() throws Exception
     {
         LocalDateTime now = LocalDateTime.now();
-        for (AutomationTrigger trigger : repository.listDueTriggers(now))
+        handleMissedTriggersOnStart(now, now);
+    }
+
+    void handleMissedTriggersOnStart(LocalDateTime dueAt, LocalDateTime now) throws Exception
+    {
+        List<AutomationTrigger> dueTriggers = repository.listDueTriggers(dueAt);
+        if (dueTriggers.isEmpty())
+        {
+            Logger.debug("hibiscus.ly.reports automation: keine verpassten Zeittrigger beim Start gefunden.");
+            return;
+        }
+        Logger.info("hibiscus.ly.reports automation: " + dueTriggers.size()
+            + " faellige Zeittrigger beim Start gefunden.");
+        for (AutomationTrigger trigger : dueTriggers)
         {
             Automation automation = repository.getAutomation(trigger.automationId());
             if (automation == null)
-                continue;
-            LocalDateTime next = schedule.next(trigger.schedule(), now);
-            if (!automation.active())
             {
-                repository.saveTrigger(trigger.withNextRun(next));
+                Logger.warn("hibiscus.ly.reports automation: faelliger Zeittrigger " + trigger.id()
+                    + " verweist auf unbekannte Automation " + trigger.automationId() + ".");
                 continue;
             }
-            if (automation.missedTriggerPolicy() == MissedTriggerPolicy.NACHHOLEN)
+            LocalDateTime next = schedule.next(trigger.schedule(), now);
+            MissedStartupAction action = missedStartupAction(automation, trigger, dueAt);
+            Logger.debug("hibiscus.ly.reports automation: verpasster Zeittrigger automation=" + automation.name()
+                + ", automationActive=" + automation.active() + ", triggerActive=" + trigger.active()
+                + ", nextRun=" + trigger.nextRun() + ", policy=" + automation.missedTriggerPolicy().value()
+                + ", action=" + action + ", naechsterLauf=" + next + ".");
+            if (action == MissedStartupAction.NACHHOLEN)
             {
                 dispatcher.dispatch(automation, trigger, "nachgeholt", false, false);
                 repository.saveTrigger(trigger.withLastRun(now).withNextRun(next));
                 continue;
             }
-            if (automation.missedTriggerPolicy() == MissedTriggerPolicy.NACHFRAGEN)
+            if (action == MissedStartupAction.NACHFRAGEN)
             {
                 waitingDecision(automation, trigger, now);
                 repository.saveTrigger(trigger.withNextRun(next));
@@ -66,6 +96,22 @@ public final class AutomationScheduler
             }
             repository.saveTrigger(trigger.withNextRun(next));
         }
+    }
+
+    public static MissedStartupAction missedStartupAction(Automation automation, AutomationTrigger trigger,
+                                                          LocalDateTime now)
+    {
+        if (automation == null || trigger == null || now == null)
+            return MissedStartupAction.NONE;
+        if (!automation.active() || !trigger.active())
+            return MissedStartupAction.NONE;
+        if (trigger.nextRun() == null || trigger.nextRun().isAfter(now))
+            return MissedStartupAction.NONE;
+        if (automation.missedTriggerPolicy() == MissedTriggerPolicy.NACHHOLEN)
+            return MissedStartupAction.NACHHOLEN;
+        if (automation.missedTriggerPolicy() == MissedTriggerPolicy.NACHFRAGEN)
+            return MissedStartupAction.NACHFRAGEN;
+        return MissedStartupAction.NONE;
     }
 
     public synchronized void stop()
@@ -85,6 +131,29 @@ public final class AutomationScheduler
         {
             Logger.error("Automation-Scheduler fehlgeschlagen", e);
         }
+    }
+
+    private void startAfterStartupDelaySafely(LocalDateTime startedAt)
+    {
+        try
+        {
+            handleMissedTriggersOnStart(startedAt, LocalDateTime.now());
+        }
+        catch (Exception e)
+        {
+            Logger.error("Verpasste Automation-Trigger konnten beim Start nicht verarbeitet werden", e);
+        }
+        finally
+        {
+            startTicks();
+        }
+    }
+
+    private synchronized void startTicks()
+    {
+        if (executor == null || executor.isShutdown())
+            return;
+        executor.scheduleWithFixedDelay(this::tickSafely, 0, TICK_DELAY_SECONDS, TimeUnit.SECONDS);
     }
 
     void tick() throws Exception
