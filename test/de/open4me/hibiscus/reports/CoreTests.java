@@ -15,6 +15,7 @@ import de.open4me.hibiscus.reports.data.DynamicReportTests;
 import de.open4me.hibiscus.reports.mcp.McpJsonRpcHandlerTests;
 import de.open4me.hibiscus.reports.mcp.McpNetworkSettingsTests;
 import de.open4me.hibiscus.reports.automation.AutomationCoreTests;
+import de.open4me.hibiscus.reports.automation.runtime.AutomationSyncTests;
 
 public final class CoreTests
 {
@@ -32,6 +33,7 @@ public final class CoreTests
         McpNetworkSettingsTests.run();
         McpJsonRpcHandlerTests.run();
         AutomationCoreTests.run();
+        AutomationSyncTests.run();
         SankeyGraphBuilderTests.run();
         SankeyExportTests.run();
         OverviewExportTests.run();

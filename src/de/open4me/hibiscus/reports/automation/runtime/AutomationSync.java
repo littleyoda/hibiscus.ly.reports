@@ -8,11 +8,13 @@ import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.openjdk.nashorn.api.scripting.ScriptObjectMirror;
 
 import de.open4me.hibiscus.reports.data.ReportAccountsProxy;
 import de.open4me.hibiscus.reports.model.ReportAccount;
+import de.willuhn.jameica.gui.GUI;
 import de.willuhn.jameica.hbci.gui.filter.KontoFilter;
 import de.willuhn.jameica.hbci.rmi.Konto;
 import de.willuhn.jameica.hbci.server.KontoUtil;
@@ -51,12 +53,23 @@ public final class AutomationSync
         return run(() -> createAllSyncs(), "alle Konten");
     }
 
+    public Object alle(Object... values) throws Exception
+    {
+        SyncOptions options = options(values);
+        if (!options.explicit())
+            return alle();
+        return runSequential(createAllTargets(), "alle Konten", options);
+    }
+
     public Object starten(Object... values) throws Exception
     {
-        List<ReportAccount> accounts = accounts(values);
+        SyncOptions options = options(values);
+        List<ReportAccount> accounts = accounts(valuesWithoutOptions(values, options));
         if (accounts.isEmpty())
             throw new IllegalArgumentException("sync.starten erwartet mindestens ein Kontoobjekt.");
-        return run(() -> createAccountSyncs(accounts), accountSummary(accounts));
+        if (!options.explicit())
+            return run(() -> createAccountSyncs(accounts), accountSummary(accounts));
+        return runSequential(accountTargets(accounts), accountSummary(accounts), options);
     }
 
     private Object run(Callable<List<Synchronization>> syncFactory, String summary) throws Exception
@@ -121,6 +134,27 @@ public final class AutomationSync
         return result;
     }
 
+    private static List<SyncTarget> createAllTargets() throws ApplicationException
+    {
+        BeanService service = Application.getBootLoader().getBootable(BeanService.class);
+        SynchronizeEngine engine = service.get(SynchronizeEngine.class);
+        List<SyncTarget> result = new ArrayList<>();
+        try
+        {
+            for (Konto konto : KontoUtil.getKonten(KontoFilter.SYNCED))
+                result.add(new SyncTarget(accountName(konto), () -> {
+                    List<Synchronization> syncs = new ArrayList<>();
+                    addForcedAccountSync(syncs, engine, konto, false);
+                    return syncs;
+                }));
+        }
+        catch (RemoteException e)
+        {
+            throw new IllegalStateException("Konten konnten nicht geladen werden", e);
+        }
+        return result;
+    }
+
     private List<Synchronization> createAccountSyncs(List<ReportAccount> accounts) throws Exception
     {
         BeanService service = Application.getBootLoader().getBootable(BeanService.class);
@@ -143,6 +177,14 @@ public final class AutomationSync
             addForcedAccountSync(result, engine, konto, true);
         }
 
+        return result;
+    }
+
+    private List<SyncTarget> accountTargets(List<ReportAccount> accounts)
+    {
+        List<SyncTarget> result = new ArrayList<>();
+        for (ReportAccount account : accounts)
+            result.add(new SyncTarget(accountName(account), () -> createAccountSyncs(List.of(account))));
         return result;
     }
 
@@ -194,7 +236,120 @@ public final class AutomationSync
         return count;
     }
 
-    private static List<ReportAccount> accounts(Object... values)
+    private Object runSequential(List<SyncTarget> targets, String summary, SyncOptions options) throws Exception
+    {
+        if (!context.getTestlauf() && context.getWriteAllowed())
+        {
+            dialogGate.awaitDialogAllowed(
+                () -> log.info("Synchronisierung wartet auf Ende einer laufenden Hibiscus-Synchronisierung."),
+                () -> log.info("Synchronisierung wird fortgesetzt."));
+        }
+
+        SyncSummary result = new SyncSummary(summary, context.getTestlauf() || !context.getWriteAllowed());
+        if (targets.isEmpty())
+        {
+            log.info("Keine Synchronisierungsjobs gefunden fuer " + summary + ".");
+            return result.toMap("keine_jobs");
+        }
+
+        for (SyncTarget target : targets)
+        {
+            try
+            {
+                List<Synchronization> syncs = target.syncFactory().call();
+                int jobs = jobCount(syncs);
+                result.jobs += jobs;
+                if (jobs == 0)
+                {
+                    log.info("Keine Synchronisierungsjobs gefunden fuer " + target.name() + ".");
+                    continue;
+                }
+                if (context.getTestlauf() || !context.getWriteAllowed())
+                {
+                    log.info("Testlauf: Synchronisierung geplant fuer " + target.name() + " (" + jobs + " Jobs).");
+                    continue;
+                }
+                executeSyncs(syncs, target.name(), jobs);
+                result.started = true;
+                result.successful++;
+            }
+            catch (AutomationCanceledException e)
+            {
+                throw e;
+            }
+            catch (Exception e)
+            {
+                SyncError error = new SyncError(target.name(), message(e));
+                if (options.strategy() == ErrorStrategy.STOPPEN)
+                    throw e;
+                result.failed++;
+                result.errors.add(error);
+                log.error("Synchronisierung fehlgeschlagen fuer " + target.name() + ": " + error.message());
+                if (options.strategy() == ErrorStrategy.NACHFRAGEN && !confirmContinue(error))
+                {
+                    result.aborted = true;
+                    break;
+                }
+            }
+        }
+
+        if (result.started && invalidateCaches != null)
+            invalidateCaches.run();
+
+        if (context.getTestlauf() || !context.getWriteAllowed())
+            return result.toMap("testlauf");
+        if (result.aborted)
+            return result.toMap("abgebrochen");
+        if (!result.errors.isEmpty())
+            return result.toMap("fehler");
+        if (!result.started && result.jobs == 0)
+            return result.toMap("keine_jobs");
+        log.info("Synchronisierung beendet fuer " + summary + ".");
+        return result.toMap("beendet");
+    }
+
+    private void executeSyncs(List<Synchronization> syncs, String summary, int jobs) throws Exception
+    {
+        SyncWaiter waiter = new SyncWaiter();
+        waiter.register();
+        try
+        {
+            log.info("Starte Synchronisierung fuer " + summary + " (" + jobs + " Jobs).");
+            new de.willuhn.jameica.hbci.gui.action.Synchronize().handleAction(syncs);
+            int status = waiter.await();
+            if (status == ProgressMonitor.STATUS_CANCEL)
+                throw new AutomationCanceledException("Synchronisierung wurde abgebrochen.");
+            if (status == ProgressMonitor.STATUS_ERROR)
+                throw new ApplicationException("Synchronisierung wurde mit Fehler beendet.");
+        }
+        finally
+        {
+            waiter.unregister();
+        }
+    }
+
+    private boolean confirmContinue(SyncError error)
+    {
+        dialogGate.awaitDialogAllowed(
+            () -> log.info("Fehler-Rueckfrage wartet auf Ende einer laufenden Hibiscus-Synchronisierung."),
+            () -> log.info("Fehler-Rueckfrage wird angezeigt."));
+        AtomicReference<Boolean> result = new AtomicReference<>(false);
+        GUI.getDisplay().syncExec(() -> {
+            try
+            {
+                result.set(Application.getCallback().askUser("Kontoabruf fuer " + error.account()
+                    + " ist fehlgeschlagen: " + error.message() + "\n\nMit dem naechsten Konto fortsetzen?"));
+            }
+            catch (Exception e)
+            {
+                result.set(false);
+            }
+        });
+        log.info("Fehler-Rueckfrage fuer " + error.account() + ": " + result.get());
+        return result.get();
+    }
+
+    static List<ReportAccount> accounts(Object... values)
     {
         List<ReportAccount> result = new ArrayList<>();
         if (values == null)
@@ -239,6 +394,42 @@ public final class AutomationSync
         throw new IllegalArgumentException("sync.starten erwartet Kontoobjekte.");
     }
 
+    static SyncOptions options(Object... values)
+    {
+        if (values == null || values.length == 0 || !isOptions(values[values.length - 1]))
+            return new SyncOptions(ErrorStrategy.STOPPEN, false);
+        Object raw = values[values.length - 1];
+        Object value = option(raw, "beiFehler");
+        if (value == null)
+            return new SyncOptions(ErrorStrategy.STOPPEN, true);
+        return new SyncOptions(ErrorStrategy.parse(value.toString()), true);
+    }
+
+    static Object[] valuesWithoutOptions(Object[] values, SyncOptions options)
+    {
+        if (values == null || values.length == 0 || !options.explicit())
+            return values;
+        Object[] copy = new Object[values.length - 1];
+        System.arraycopy(values, 0, copy, 0, copy.length);
+        return copy;
+    }
+
+    private static boolean isOptions(Object value)
+    {
+        if (value instanceof Map<?, ?> map)
+            return map.containsKey("beiFehler");
+        return value instanceof ScriptObjectMirror mirror && !mirror.isArray() && mirror.containsKey("beiFehler");
+    }
+
+    private static Object option(Object value, String key)
+    {
+        if (value instanceof Map<?, ?> map)
+            return map.get(key);
+        if (value instanceof ScriptObjectMirror mirror)
+            return mirror.get(key);
+        return null;
+    }
+
     private static String accountSummary(List<ReportAccount> accounts)
     {
         if (accounts.size() == 1)
@@ -251,6 +442,107 @@ public final class AutomationSync
     {
         return Map.of("gestartet", started, "testlauf", testRun, "konten", accounts, "jobs", jobs, "status",
             status);
+    }
+
+    private static String accountName(Konto konto)
+    {
+        if (konto == null)
+            return "Konto";
+        try
+        {
+            String name = konto.getBezeichnung();
+            return name == null || name.isBlank() ? "Konto " + konto.getID() : name;
+        }
+        catch (Exception e)
+        {
+            return "Konto";
+        }
+    }
+
+    private static String accountName(ReportAccount account)
+    {
+        String name = account == null ? null : account.getName();
+        return name == null || name.isBlank() ? "Konto" : name;
+    }
+
+    private static String message(Throwable error)
+    {
+        String message = error.getMessage();
+        return message == null || message.isBlank() ? error.getClass().getName() : message;
+    }
+
+    enum ErrorStrategy
+    {
+        STOPPEN("stoppen"),
+        FORTSETZEN("fortsetzen"),
+        NACHFRAGEN("nachfragen");
+
+        private final String value;
+
+        ErrorStrategy(String value)
+        {
+            this.value = value;
+        }
+
+        static ErrorStrategy parse(String value)
+        {
+            for (ErrorStrategy strategy : values())
+            {
+                if (strategy.value.equalsIgnoreCase(value))
+                    return strategy;
+            }
+            throw new IllegalArgumentException("Unbekannte sync.beiFehler-Strategie: " + value
+                + ". Erlaubt sind stoppen, fortsetzen, nachfragen.");
+        }
+    }
+
+    record SyncOptions(ErrorStrategy strategy, boolean explicit)
+    {
+    }
+
+    private record SyncTarget(String name, Callable<List<Synchronization>> syncFactory)
+    {
+    }
+
+    private record SyncError(String account, String message)
+    {
+        Map<String, Object> toMap()
+        {
+            return Map.of("konto", account, "meldung", message);
+        }
+    }
+
+    private static final class SyncSummary
+    {
+        private final String accounts;
+        private final boolean testRun;
+        private boolean started;
+        private int jobs;
+        private int successful;
+        private int failed;
+        private boolean aborted;
+        private final List<SyncError> errors = new ArrayList<>();
+
+        private SyncSummary(String accounts, boolean testRun)
+        {
+            this.accounts = accounts;
+            this.testRun = testRun;
+        }
+
+        private Map<String, Object> toMap(String status)
+        {
+            Map<String, Object> result = new LinkedHashMap<>();
+            result.put("gestartet", started);
+            result.put("testlauf", testRun);
+            result.put("konten", accounts);
+            result.put("jobs", jobs);
+            result.put("status", status);
+            result.put("erfolgreich", successful);
+            result.put("fehlgeschlagen", failed);
+            result.put("abgebrochen", aborted);
+            result.put("fehler", errors.stream().map(SyncError::toMap).toList());
+            return result;
+        }
     }
 
     private static final class SyncWaiter

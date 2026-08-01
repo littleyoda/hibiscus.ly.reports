@@ -398,6 +398,34 @@ Mehrere Konten synchronisieren:
 sync.starten(konto1, konto2);
 ```
 
+Bei mehreren Konten kann der Abruf mit einer Fehlerstrategie gestartet werden.
+Ohne Strategie stoppt der Abruf wie bisher beim ersten Fehler:
+
+```javascript
+sync.starten(konto1, konto2, { beiFehler: "stoppen" });
+sync.starten(konto1, konto2, { beiFehler: "fortsetzen" });
+sync.starten(konto1, konto2, { beiFehler: "nachfragen" });
+```
+
+`fortsetzen` protokolliert fehlerhafte Konten und versucht danach das naechste
+Konto. `nachfragen` zeigt nach einem Fehler eine Rueckfrage an; bei Nein oder
+Dialogabbruch endet der Kontoabruf ohne weitere Konten. In beiden Faellen wirft
+`sync.starten` wegen einzelner Kontofehler keine Exception, sondern liefert die
+Fehler im Ergebnis zurueck:
+
+```javascript
+var ergebnis = sync.starten(konto1, konto2, { beiFehler: "fortsetzen" });
+if (ergebnis.fehlgeschlagen > 0) {
+  log.warn("Kontoabruf mit Fehlern beendet: " + JSON.stringify(ergebnis.fehler));
+}
+```
+
+Auch `sync.alle` kann mit einer Fehlerstrategie gestartet werden:
+
+```javascript
+sync.alle({ beiFehler: "fortsetzen" });
+```
+
 Im Testlauf wird keine echte Synchronisierung gestartet. Der geplante
 Synchronisierungslauf wird nur protokolliert.
 
