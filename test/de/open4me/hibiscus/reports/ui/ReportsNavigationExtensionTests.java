@@ -1,12 +1,17 @@
 package de.open4me.hibiscus.reports.ui;
 
 import java.nio.file.Path;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import de.open4me.hibiscus.reports.automation.model.Automation;
+import de.open4me.hibiscus.reports.automation.model.AutomationRun;
 import de.open4me.hibiscus.reports.automation.model.MissedTriggerPolicy;
 import de.open4me.hibiscus.reports.automation.model.RunMode;
+import de.open4me.hibiscus.reports.automation.model.RunStatus;
 import de.open4me.hibiscus.reports.model.DynamicReport;
 import de.willuhn.jameica.gui.Item;
 import de.willuhn.jameica.gui.NavigationItem;
@@ -24,6 +29,10 @@ public final class ReportsNavigationExtensionTests
             buildsNestedReportNavigation();
             buildsNestedAutomationNavigation();
             detectsAutomationEditorStateChanges();
+            assignsAutomationStartBoxSlotsAlphabetically();
+            keepsExistingAutomationStartBoxAssignments();
+            cleansDeletedAndDuplicateAutomationStartBoxAssignments();
+            formatsAutomationStartBoxLastRun();
         }
         catch (Exception e)
         {
@@ -119,6 +128,69 @@ public final class ReportsNavigationExtensionTests
             "0 30 7 * * ?", "log.info('y');").differsFrom(saved), "script change is dirty");
     }
 
+    private static void assignsAutomationStartBoxSlotsAlphabetically()
+    {
+        FakeSlotSettings settings = new FakeSlotSettings();
+        Map<Integer, Automation> assignments = AutomationStartBoxAssignments.assignments(List.of(
+            automation("2", "zeta"),
+            automation("1", "Alpha"),
+            automation("3", "beta")), settings);
+
+        checkEquals("Alpha", assignments.get(1).name(), "slot 1 automation");
+        checkEquals("beta", assignments.get(2).name(), "slot 2 automation");
+        checkEquals("zeta", assignments.get(3).name(), "slot 3 automation");
+        checkEquals(ReportsNavigationExtension.id(assignments.get(1)),
+            settings.get(AutomationStartBoxAssignments.key(1)), "slot 1 setting");
+    }
+
+    private static void keepsExistingAutomationStartBoxAssignments()
+    {
+        Automation alpha = automation("1", "Alpha");
+        Automation beta = automation("2", "Beta");
+        FakeSlotSettings settings = new FakeSlotSettings();
+        settings.set(AutomationStartBoxAssignments.key(5), ReportsNavigationExtension.id(beta));
+
+        Map<Integer, Automation> assignments = AutomationStartBoxAssignments.assignments(List.of(alpha, beta), settings);
+
+        checkEquals("Alpha", assignments.get(1).name(), "new automation uses first free slot");
+        checkEquals("Beta", assignments.get(5).name(), "existing automation keeps slot");
+    }
+
+    private static void cleansDeletedAndDuplicateAutomationStartBoxAssignments()
+    {
+        Automation alpha = automation("1", "Alpha");
+        String alphaId = ReportsNavigationExtension.id(alpha);
+        FakeSlotSettings settings = new FakeSlotSettings();
+        settings.set(AutomationStartBoxAssignments.key(1), alphaId);
+        settings.set(AutomationStartBoxAssignments.key(2), alphaId);
+        settings.set(AutomationStartBoxAssignments.key(3), "deleted-automation");
+
+        Map<Integer, Automation> assignments = AutomationStartBoxAssignments.assignments(List.of(alpha), settings);
+
+        checkEquals("Alpha", assignments.get(1).name(), "first duplicate assignment survives");
+        check(assignments.get(2) == null, "duplicate assignment removed from result");
+        check(settings.get(AutomationStartBoxAssignments.key(2)) == null, "duplicate setting removed");
+        check(settings.get(AutomationStartBoxAssignments.key(3)) == null, "deleted setting removed");
+    }
+
+    private static void formatsAutomationStartBoxLastRun()
+    {
+        LocalDateTime started = LocalDateTime.of(2026, 8, 1, 9, 10, 11);
+        LocalDateTime finished = LocalDateTime.of(2026, 8, 1, 9, 12, 13);
+
+        checkEquals("Letzter Lauf: noch nicht ausgeführt", AutomationStartBoxText.lastRunText(null),
+            "missing run text");
+        checkEquals("Letzter Lauf: 01.08.2026 09:12:13 (erfolgreich)",
+            AutomationStartBoxText.lastRunText(run(RunStatus.ERFOLGREICH, started, finished)),
+            "finished run text");
+        checkEquals("Letzter Lauf: 01.08.2026 09:10:11 (fehlgeschlagen)",
+            AutomationStartBoxText.lastRunText(run(RunStatus.FEHLGESCHLAGEN, started, null)),
+            "fallback started run text");
+        checkEquals("Letzter Lauf: 01.08.2026 09:10:11 (wartet)",
+            AutomationStartBoxText.lastRunText(run(RunStatus.WARTET, started, finished)),
+            "waiting run text uses started time");
+    }
+
     private static DynamicReport report(String displayName)
     {
         return new DynamicReport(Path.of("/tmp/reports", displayName + ".html"), displayName);
@@ -127,6 +199,11 @@ public final class ReportsNavigationExtensionTests
     private static Automation automation(String id, String name)
     {
         return new Automation(id, name, "", true, RunMode.SINGLE, MissedTriggerPolicy.IGNORIEREN, "", 100);
+    }
+
+    private static AutomationRun run(RunStatus status, LocalDateTime startedAt, LocalDateTime finishedAt)
+    {
+        return new AutomationRun("1", "1", null, status, "manuell", false, startedAt, finishedAt, "", "");
     }
 
     private static List<NavigationItem> children(NavigationItem item) throws Exception
@@ -155,5 +232,25 @@ public final class ReportsNavigationExtensionTests
     {
         if (!java.util.Objects.equals(expected, actual))
             throw new AssertionError(message + " expected <" + expected + "> but was <" + actual + ">");
+    }
+
+    private static final class FakeSlotSettings implements AutomationStartBoxAssignments.SlotSettings
+    {
+        private final Map<String, String> values = new HashMap<>();
+
+        @Override
+        public String get(String key)
+        {
+            return values.get(key);
+        }
+
+        @Override
+        public void set(String key, String value)
+        {
+            if (value == null)
+                values.remove(key);
+            else
+                values.put(key, value);
+        }
     }
 }

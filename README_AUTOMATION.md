@@ -16,6 +16,7 @@ Der aktuelle Implementierungsstand enthält:
 
 - eigene Automation-Ansicht in Jameica
 - Anzeige gespeicherter Automationen im Jameica-Navigationsbaum
+- Anzeige gespeicherter Automationen als optionale Startseiten-Boxen
 - SQL-Datenhaltung für Automationen, Trigger, Läufe, Logs und wartende
   Entscheidungen
 - manuelle Ausführung
@@ -54,6 +55,27 @@ Die Ansicht bietet aktuell:
 Pro Automation werden Name, Beschreibung, Verhalten bei verpassten Triggern,
 aktive Zeitsteuerung, Zeitplan und Script bearbeitet. Die Historie ist aktuell
 fest auf 100 Einträge begrenzt.
+
+## Startseite
+
+Gespeicherte Automationen stehen zusätzlich als Elemente für die
+Jameica-Startseite zur Verfügung. Über **Startseite anpassen** können einzelne
+Automationen aktiviert, sortiert und bei Bedarf wieder ausgeblendet werden.
+
+Das Plugin stellt dafür 32 Automations-Plätze bereit. Beim ersten Laden werden
+Automationen alphabetisch auf freie Plätze verteilt. Bereits gespeicherte
+Zuordnungen bleiben erhalten, damit eine manuell angepasste Startseite nicht
+bei jedem Start neu sortiert wird. Wird eine Automation gelöscht oder ist eine
+gespeicherte Zuordnung doppelt, bereinigt das Plugin den betroffenen Platz und
+füllt freie Plätze wieder mit noch nicht zugeordneten Automationen auf.
+
+Eine aktive Automations-Box zeigt den Namen der Automation als Schaltfläche und
+den letzten bekannten Lauf mit Zeitpunkt und Status. Ein Klick auf die
+Schaltfläche startet die Automation manuell im normalen Laufmodus. Während der
+Lauf aktiv ist, gelten dieselben Regeln wie in der Automations-Ansicht: Eine
+bereits laufende Automation wird im Modus `single` nicht parallel erneut
+gestartet, und Dialoge oder Synchronisationssperren werden wie gewohnt über die
+Automation-Laufzeit behandelt.
 
 ## Automationsmodell
 

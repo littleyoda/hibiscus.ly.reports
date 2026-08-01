@@ -10,7 +10,8 @@ lokalen MCP-Server.
   Gruppen sowie eigene HTML-/Jinjava-Reports mit Hibiscus-Daten.
   Details: [README_REPORTS.md](README_REPORTS.md)
 - **Automatisierung**: lokale JavaScript-Automationen, manuelle Ausführung,
-  Testläufe, Zeitsteuerung, Dialoge, `sync` und Zahlungsentwürfe.
+  Startseiten-Boxen, Testläufe, Zeitsteuerung, Dialoge, `sync` und
+  Zahlungsentwürfe.
   Details: [README_AUTOMATION.md](README_AUTOMATION.md)
 - **MCP-Server**: optionaler lokaler Zugriff für MCP-Clients mit Tools für
   Konten, Umsätze, Template-Rendering, Sync und SEPA-Entwürfe.
