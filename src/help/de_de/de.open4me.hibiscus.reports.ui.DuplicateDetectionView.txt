@@ -1,0 +1,55 @@
+<form>
+  <p>
+    <span color="header" font="header">Duplikate suchen</span>
+  </p>
+
+  <p>
+    Diese Funktion sucht m&#246;gliche doppelte Ums&#228;tze in Hibiscus. Sie
+    vergleicht nur gebuchte Ums&#228;tze; vorgemerkte Buchungen werden
+    ausgelassen.
+  </p>
+
+  <p>
+    Der Zeitraum wird mit den Hibiscus-Vorgaben oder taggenau &#252;ber
+    <b>Von</b> und <b>bis</b> gew&#228;hlt. Standardm&#228;&#223;ig ist das aktuelle
+    Kalenderjahr bis heute voreingestellt.
+  </p>
+
+  <p>
+    &#220;ber <b>Konten</b> kann die Suche <b>&lt;Alle Konten&gt;</b>,
+    eine Kontogruppe oder ein einzelnes aktives Konto pr&#252;fen.
+    <b>&lt;Alle Konten&gt;</b> umfasst alle aktiven Konten. Deaktivierte
+    Konten werden in dieser Ansicht nicht durchsucht.
+  </p>
+
+  <p>
+    Die Ergebnisliste zeigt jedes m&#246;gliche Duplikat-Paar mit zwei Zeilen.
+    Die Spalte <b>Paar</b> kennzeichnet, welche Ums&#228;tze zusammengeh&#246;ren.
+    Die Einstufung basiert auf Datum, Betrag, Gegenkonto, Verwendungszweck
+    und Saldo.
+  </p>
+
+  <p>
+    Die Zeile mit der niedrigeren Umsatz-ID wird fett dargestellt. Das ist
+    der &#228;ltere Eintrag und in der Regel der Kandidat, der gel&#246;scht
+    werden sollte.
+  </p>
+
+  <p>
+    <b>Alle Duplikate ausw&#228;hlen</b> markiert alle fett dargestellten
+    Zeilen. Anschlie&#223;end k&#246;nnen diese Ums&#228;tze gemeinsam &#252;ber
+    <b>L&#246;schen</b> im Kontextmen&#252; entfernt werden.
+  </p>
+
+  <p>
+    Mit einem Doppelklick oder &#252;ber <b>Anzeigen</b> im Kontextmen&#252; wird
+    der ausgew&#228;hlte Umsatz in Hibiscus ge&#246;ffnet. &#220;ber <b>L&#246;schen</b>
+    k&#246;nnen ausgew&#228;hlte Ums&#228;tze nach Best&#228;tigung entfernt werden.
+  </p>
+
+  <p>
+    Die Erkennung ist eine Entscheidungshilfe. Pr&#252;fen Sie Treffer vor dem
+    L&#246;schen, weil die Funktion nicht automatisch bestimmen kann, welcher
+    Umsatz behalten werden soll.
+  </p>
+</form>

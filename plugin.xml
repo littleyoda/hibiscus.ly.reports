@@ -4,7 +4,7 @@
         xsi:schemaLocation="http://www.willuhn.de/schema/jameica-plugin https://www.willuhn.de/schema/jameica-plugin-1.5.xsd"
         name="hibiscus.ly.reports" version="1.0.1" class="de.open4me.hibiscus.reports.Plugin">
 
-  <description>Diverse Erweiterungen für Hibiscus: Interaktive Auswertungen, Report-Generator, Automatisierung, MCP-Server</description>
+  <description>Diverse Erweiterungen für Hibiscus: Interaktive Auswertungen, Report-Generator, Automatisierung, Duplikats-Erkennung, MCP-Server</description>
   <license>GPL-3.0</license>
   <url>https://www.open4me.de/hibiscus/hibiscus.ly.reports/hibiscus.ly.reports.zip</url>
 
@@ -21,6 +21,7 @@
     <item id="hibiscus.ly.reports.menu" name="Tools">
       <item id="hibiscus.ly.reports.reports" name="Reports..." action="de.open4me.hibiscus.reports.ui.OpenDynamicReportsViewAction" />
       <item id="hibiscus.ly.reports.automation" name="Automatisierung..." action="de.open4me.hibiscus.reports.ui.OpenAutomationViewAction" />
+      <item id="hibiscus.ly.reports.duplicates" name="Duplikate suchen..." action="de.open4me.hibiscus.reports.ui.OpenDuplicateDetectionViewAction" />
       <item id="hibiscus.ly.reports.mcp-settings" name="MCP-Server..." action="de.open4me.hibiscus.reports.ui.McpSettingsAction" />
     </item>
   </menu>

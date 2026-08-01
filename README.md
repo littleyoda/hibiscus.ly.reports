@@ -1,8 +1,8 @@
 # hibiscus.ly.reports
 
 `hibiscus.ly.reports` erweitert Hibiscus/Jameica um interaktive Auswertungen,
-eigene HTML-Reports, lokale JavaScript-Automatisierungen und einen optionalen
-lokalen MCP-Server.
+eigene HTML-Reports, lokale JavaScript-Automatisierungen, Duplikats-Erkennung
+und einen optionalen lokalen MCP-Server.
 
 ## Funktionen und Dokumentation
 
@@ -13,6 +13,10 @@ lokalen MCP-Server.
   Startseiten-Boxen, Testläufe, Zeitsteuerung, Dialoge, `sync` und
   Zahlungsentwürfe.
   Details: [README_AUTOMATION.md](README_AUTOMATION.md)
+- **Duplikats-Erkennung**: sucht mögliche doppelte Umsätze im gewählten
+  Zeitraum, wahlweise über alle aktiven Konten oder ein einzelnes aktives
+  Konto, mit Detailansicht und Löschfunktion.
+  Details: [README_DUPLICATES.md](README_DUPLICATES.md)
 - **MCP-Server**: optionaler lokaler Zugriff für MCP-Clients mit Tools für
   Konten, Umsätze, Template-Rendering, Sync und SEPA-Entwürfe.
   Details: [README_MCP.md](README_MCP.md)

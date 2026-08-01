@@ -12,6 +12,7 @@ final class HelpResourceTests
         exists("help/de_de/de.open4me.hibiscus.reports.ui.FlowView.txt");
         exists("help/de_de/de.open4me.hibiscus.reports.ui.MonthlyOverviewView.txt");
         exists("help/de_de/de.open4me.hibiscus.reports.ui.GroupBalanceView.txt");
+        exists("help/de_de/de.open4me.hibiscus.reports.ui.DuplicateDetectionView.txt");
         htmlExists("help/de_de/reports-objects.html");
     }
 
