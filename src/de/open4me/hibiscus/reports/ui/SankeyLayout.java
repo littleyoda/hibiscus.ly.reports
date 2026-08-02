@@ -11,7 +11,9 @@ final class SankeyLayout
 {
     static final int WIDTH = 1380;
     static final int NODE_WIDTH = 20;
-    private static final int GAP = 18;
+    static final int DEFAULT_LINK_COLOR = 0x919191;
+    private static final int GAP = 32;
+    private static final int LABEL_ROW_HEIGHT = 40;
     private static final int TOP = 32;
     private static final int BOTTOM = 32;
     private static final int[] COLUMN_X = { 250, 530, 820, 1110 };
@@ -32,7 +34,8 @@ final class SankeyLayout
                 maxNodes = Math.max(maxNodes, count);
             }
         }
-        return Math.max(560, TOP + BOTTOM + maxNodes * 58);
+        return Math.max(560, TOP + BOTTOM + maxNodes * LABEL_ROW_HEIGHT
+            + Math.max(0, maxNodes - 1) * GAP);
     }
 
     static Scene create(SankeyGraph graph, int height)
@@ -93,7 +96,8 @@ final class SankeyLayout
             float ty1 = (float) (target.bounds().y() + targetOffset);
             float ty2 = (float) Math.min(target.bounds().bottom(), ty1 + thickness);
             float bend = (tx - sx) * 0.48f;
-            links.add(new LinkPlacement(link, sx, sy1, sy2, tx, ty1, ty2, bend));
+            links.add(new LinkPlacement(link, sx, sy1, sy2, tx, ty1, ty2, bend,
+                linkColor(source.node(), target.node())));
             outgoing.put(link.sourceId(), sourceOffset + thickness);
             incoming.put(link.targetId(), targetOffset + thickness);
         }
@@ -105,6 +109,13 @@ final class SankeyLayout
         return Math.max(12, (int) Math.round(node.amount() * scale));
     }
 
+    private static int linkColor(SankeyGraph.Node source, SankeyGraph.Node target)
+    {
+        if (source == null || target == null)
+            return DEFAULT_LINK_COLOR;
+        return target.layer() == 1 ? source.color() : target.color();
+    }
+
     record Scene(int width, int height, List<NodePlacement> nodes, List<LinkPlacement> links)
     {
     }
@@ -114,7 +125,7 @@ final class SankeyLayout
     }
 
     record LinkPlacement(SankeyGraph.Link link, float sourceX, float sourceTop, float sourceBottom,
-                         float targetX, float targetTop, float targetBottom, float bend)
+                         float targetX, float targetTop, float targetBottom, float bend, int color)
     {
     }
 
@@ -131,4 +142,3 @@ final class SankeyLayout
         }
     }
 }
-

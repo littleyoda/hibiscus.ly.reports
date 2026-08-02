@@ -72,6 +72,8 @@ public class FlowView extends AbstractView
     private SankeyGraph currentGraph;
     private double appliedThreshold;
     private int thresholdTenths;
+    private boolean showTotal;
+    private boolean showMonthlyAverage;
     private LocalDate displayedFrom;
     private LocalDate displayedTo;
     private List<AccountInfo> accountList = List.of();
@@ -89,6 +91,8 @@ public class FlowView extends AbstractView
         accountList = provider.loadAccounts();
         excludedAccountIds.addAll(AccountSelectionSettings.load(SETTINGS, accountList, true));
         thresholdTenths = SETTINGS.getInt("threshold.tenths", 20);
+        showTotal = SETTINGS.getBoolean("show.total", true);
+        showMonthlyAverage = SETTINGS.getBoolean("show.monthlyAverage", true);
         addAccountPanelButton();
         addExportPanelButton();
 
@@ -161,7 +165,7 @@ public class FlowView extends AbstractView
             @Override
             public void handleAction(Object context) throws ApplicationException
             {
-                FlowExportService.export(currentGraph, displayedFrom, displayedTo);
+                FlowExportService.export(currentGraph, displayedFrom, displayedTo, detailOptions());
             }
         }, "Geldflussgrafik exportieren...");
         GUI.getView().addPanelButton(button);
@@ -274,6 +278,7 @@ public class FlowView extends AbstractView
         if (report == null)
             return;
         currentGraph = graphBuilder.build(report, expanded, appliedThreshold);
+        canvas.setDetailOptions(detailOptions());
         canvas.setGraph(currentGraph);
         resizeCanvas();
     }
@@ -342,14 +347,19 @@ public class FlowView extends AbstractView
         try
         {
             AccountFilterDialog.Result result = new AccountFilterDialog(accountList, excludedAccountIds,
-                provider.loadExcludedCategories(), thresholdTenths).open();
+                provider.loadExcludedCategories(), thresholdTenths, showTotal, showMonthlyAverage).open();
             if (result == null)
                 return;
             excludedAccountIds.clear();
             excludedAccountIds.addAll(result.excludedAccountIds());
             thresholdTenths = result.thresholdTenths();
+            showTotal = result.showTotal();
+            showMonthlyAverage = result.showMonthlyAverage();
             AccountSelectionSettings.save(SETTINGS, excludedAccountIds);
             SETTINGS.setAttribute("threshold.tenths", thresholdTenths);
+            SETTINGS.setAttribute("show.total", showTotal);
+            SETTINGS.setAttribute("show.monthlyAverage", showMonthlyAverage);
+            rebuildGraph();
         }
         catch (OperationCanceledException e)
         {
@@ -375,6 +385,13 @@ public class FlowView extends AbstractView
         SETTINGS.setAttribute("period.to", to == null ? null : to.toString());
         AccountSelectionSettings.save(SETTINGS, excludedAccountIds);
         SETTINGS.setAttribute("threshold.tenths", thresholdTenths);
+        SETTINGS.setAttribute("show.total", showTotal);
+        SETTINGS.setAttribute("show.monthlyAverage", showMonthlyAverage);
+    }
+
+    private SankeyText.DetailOptions detailOptions()
+    {
+        return new SankeyText.DetailOptions(showTotal, showMonthlyAverage);
     }
 
     private static LocalDate selectedDate(Input input)

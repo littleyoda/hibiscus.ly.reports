@@ -37,14 +37,27 @@ final class AccountFilterDialog extends AbstractDialog<AccountFilterDialog.Resul
     private final List<ExcludedCategoryInfo> excludedCategories;
     private Table table;
     private Spinner threshold;
+    private Button showTotal;
+    private Button showMonthlyAverage;
     private Result result;
+    private final int initialThresholdTenths;
+    private final boolean initialShowTotal;
+    private final boolean initialShowMonthlyAverage;
 
-    record Result(Set<String> excludedAccountIds, int thresholdTenths)
+    record Result(Set<String> excludedAccountIds, int thresholdTenths,
+                  boolean showTotal, boolean showMonthlyAverage)
     {
     }
 
     AccountFilterDialog(List<AccountInfo> accounts, Set<String> excludedIds,
                         List<ExcludedCategoryInfo> excludedCategories, int thresholdTenths)
+    {
+        this(accounts, excludedIds, excludedCategories, thresholdTenths, true, true);
+    }
+
+    AccountFilterDialog(List<AccountInfo> accounts, Set<String> excludedIds,
+                        List<ExcludedCategoryInfo> excludedCategories, int thresholdTenths,
+                        boolean showTotal, boolean showMonthlyAverage)
     {
         super(POSITION_CENTER);
         this.accounts = List.copyOf(accounts);
@@ -54,6 +67,8 @@ final class AccountFilterDialog extends AbstractDialog<AccountFilterDialog.Resul
         setTitle("Einstellungen der Geldfluss-Auswertung");
         setSize(WINDOW_WIDTH, WINDOW_HEIGHT);
         this.initialThresholdTenths = thresholdTenths;
+        this.initialShowTotal = showTotal;
+        this.initialShowMonthlyAverage = showMonthlyAverage;
     }
 
     @Override
@@ -79,7 +94,8 @@ final class AccountFilterDialog extends AbstractDialog<AccountFilterDialog.Resul
                     if (account.isEuro() && !item.getChecked())
                         excluded.add(account.id());
                 }
-                result = new Result(Set.copyOf(excluded), threshold.getSelection());
+                result = new Result(Set.copyOf(excluded), threshold.getSelection(),
+                    showTotal.getSelection(), showMonthlyAverage.getSelection());
                 close();
             }
         }, null, true, "ok.png");
@@ -87,8 +103,6 @@ final class AccountFilterDialog extends AbstractDialog<AccountFilterDialog.Resul
         container.addButtonArea(buttons);
         getShell().setMinimumSize(getShell().computeSize(WINDOW_WIDTH, WINDOW_HEIGHT));
     }
-
-    private final int initialThresholdTenths;
 
     private void createAccountTab(TabFolder tabs)
     {
@@ -184,6 +198,9 @@ final class AccountFilterDialog extends AbstractDialog<AccountFilterDialog.Resul
         threshold.setPageIncrement(10);
         threshold.setSelection(initialThresholdTenths);
         new Label(row, SWT.NONE).setText("%");
+
+        showTotal = checkbox(content, "Summe anzeigen", initialShowTotal);
+        showMonthlyAverage = checkbox(content, "Monatlichen Durchschnitt anzeigen", initialShowMonthlyAverage);
     }
 
     private static Composite tab(TabFolder folder, String title)
@@ -219,6 +236,15 @@ final class AccountFilterDialog extends AbstractDialog<AccountFilterDialog.Resul
         Button button = new Button(parent, SWT.PUSH);
         button.setText(text);
         button.addListener(SWT.Selection, event -> action.run());
+    }
+
+    private static Button checkbox(Composite parent, String text, boolean selected)
+    {
+        Button button = new Button(parent, SWT.CHECK);
+        button.setText(text);
+        button.setSelection(selected);
+        button.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+        return button;
     }
 
     @Override

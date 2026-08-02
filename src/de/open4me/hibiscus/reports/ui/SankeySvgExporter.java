@@ -17,6 +17,12 @@ public final class SankeySvgExporter
 
     public static String create(SankeyGraph graph, LocalDate from, LocalDate to)
     {
+        return create(graph, from, to, SankeyText.DetailOptions.DEFAULT);
+    }
+
+    public static String create(SankeyGraph graph, LocalDate from, LocalDate to,
+                                SankeyText.DetailOptions detailOptions)
+    {
         int chartHeight = SankeyLayout.preferredHeight(graph);
         int height = HEADER_HEIGHT + chartHeight;
         SankeyLayout.Scene scene = SankeyLayout.create(graph, chartHeight);
@@ -35,14 +41,15 @@ public final class SankeySvgExporter
             .append(escape(summary(graph))).append("</text>\n");
         svg.append("  </g>\n");
 
-        svg.append("  <g fill=\"#919191\" fill-opacity=\"0.35\">\n");
+        svg.append("  <g fill-opacity=\"0.35\">\n");
         for (SankeyLayout.LinkPlacement link : scene.links())
         {
             float sy1 = link.sourceTop() + HEADER_HEIGHT;
             float sy2 = link.sourceBottom() + HEADER_HEIGHT;
             float ty1 = link.targetTop() + HEADER_HEIGHT;
             float ty2 = link.targetBottom() + HEADER_HEIGHT;
-            svg.append("    <path d=\"M ").append(number(link.sourceX())).append(' ').append(number(sy1))
+            svg.append("    <path fill=\"").append(color(link.color())).append("\" d=\"M ")
+                .append(number(link.sourceX())).append(' ').append(number(sy1))
                 .append(" C ").append(number(link.sourceX() + link.bend())).append(' ').append(number(sy1))
                 .append(' ').append(number(link.targetX() - link.bend())).append(' ').append(number(ty1))
                 .append(' ').append(number(link.targetX())).append(' ').append(number(ty1))
@@ -69,8 +76,8 @@ public final class SankeySvgExporter
             svg.append("    <text x=\"").append(number(textX)).append("\" y=\"")
                 .append(number(textY)).append("\">")
                 .append("<tspan>").append(escape(placement.node().name())).append("</tspan>")
-                .append("<tspan x=\"").append(number(textX)).append("\" dy=\"16\">")
-                .append(escape(SankeyText.detailLine(graph, placement.node())))
+                .append("<tspan x=\"").append(number(textX)).append("\" dy=\"14\">")
+                .append(escape(SankeyText.detailLine(graph, placement.node(), detailOptions)))
                 .append("</tspan></text>\n");
         }
         svg.append("  </g>\n</svg>\n");

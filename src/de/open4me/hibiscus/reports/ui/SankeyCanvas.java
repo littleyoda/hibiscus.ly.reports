@@ -19,6 +19,7 @@ public class SankeyCanvas extends Canvas
     private SankeyGraph graph;
     private SankeyLayout.Scene scene;
     private int zoomPercent = 100;
+    private SankeyText.DetailOptions detailOptions = SankeyText.DetailOptions.DEFAULT;
     private Consumer<String> categoryToggle = ignored -> { };
     private Consumer<SankeyGraph.Node> transactionOpen = ignored -> { };
 
@@ -34,7 +35,7 @@ public class SankeyCanvas extends Canvas
             {
                 transform.scale(scale, scale);
                 event.gc.setTransform(transform);
-                SankeySwtRenderer.paint(event.gc, getDisplay(), graph, scene, 0, true, false);
+                SankeySwtRenderer.paint(event.gc, getDisplay(), graph, scene, 0, true, false, detailOptions);
             }
             finally
             {
@@ -76,6 +77,12 @@ public class SankeyCanvas extends Canvas
         redraw();
     }
 
+    public void setDetailOptions(SankeyText.DetailOptions detailOptions)
+    {
+        this.detailOptions = detailOptions == null ? SankeyText.DetailOptions.DEFAULT : detailOptions;
+        redraw();
+    }
+
     public void setCategoryToggle(Consumer<String> categoryToggle)
     {
         this.categoryToggle = categoryToggle == null ? ignored -> { } : categoryToggle;
@@ -114,7 +121,8 @@ public class SankeyCanvas extends Canvas
             setCursor(null);
             return;
         }
-        setToolTipText(placement.node().name() + "\n" + SankeyText.detailLine(graph, placement.node()));
+        setToolTipText(placement.node().name() + "\n"
+            + SankeyText.detailLine(graph, placement.node(), detailOptions));
         setCursor(placement.node().expandableKey() == null
             && !canOpenTransactions(placement.node())
             ? null : getDisplay().getSystemCursor(SWT.CURSOR_HAND));

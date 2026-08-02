@@ -24,6 +24,12 @@ final class SankeyPngExporter
 
     static void save(Display display, SankeyGraph graph, LocalDate from, LocalDate to, String filename)
     {
+        save(display, graph, from, to, filename, SankeyText.DetailOptions.DEFAULT);
+    }
+
+    static void save(Display display, SankeyGraph graph, LocalDate from, LocalDate to, String filename,
+                     SankeyText.DetailOptions detailOptions)
+    {
         int chartHeight = SankeyLayout.preferredHeight(graph);
         int logicalHeight = SankeySvgExporter.HEADER_HEIGHT + chartHeight;
         Image image = new Image(display, SankeyLayout.WIDTH * SCALE, logicalHeight * SCALE);
@@ -56,7 +62,7 @@ final class SankeyPngExporter
 
                 SankeyLayout.Scene scene = SankeyLayout.create(graph, chartHeight);
                 SankeySwtRenderer.paint(gc, display, graph, scene,
-                    SankeySvgExporter.HEADER_HEIGHT, false, true);
+                    SankeySvgExporter.HEADER_HEIGHT, false, true, detailOptions);
             }
             finally
             {

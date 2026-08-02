@@ -26,6 +26,12 @@ final class FlowExportService
 
     static void export(SankeyGraph graph, LocalDate from, LocalDate to) throws ApplicationException
     {
+        export(graph, from, to, SankeyText.DetailOptions.DEFAULT);
+    }
+
+    static void export(SankeyGraph graph, LocalDate from, LocalDate to,
+                       SankeyText.DetailOptions detailOptions) throws ApplicationException
+    {
         if (graph == null || graph.nodes().isEmpty())
             throw new ApplicationException("Es ist keine Geldflussgrafik zum Exportieren vorhanden.");
 
@@ -62,12 +68,12 @@ final class FlowExportService
         {
             if (format == 1)
             {
-                Files.writeString(Path.of(selected), SankeySvgExporter.create(graph, from, to),
+                Files.writeString(Path.of(selected), SankeySvgExporter.create(graph, from, to, detailOptions),
                     StandardCharsets.UTF_8);
             }
             else
             {
-                SankeyPngExporter.save(GUI.getDisplay(), graph, from, to, selected);
+                SankeyPngExporter.save(GUI.getDisplay(), graph, from, to, selected, detailOptions);
             }
             Application.getMessagingFactory().sendMessage(new StatusBarMessage(
                 "Geldflussgrafik gespeichert: " + selected, StatusBarMessage.TYPE_SUCCESS));

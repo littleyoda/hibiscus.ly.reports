@@ -17,6 +17,14 @@ final class SankeySwtRenderer
     static void paint(GC gc, Display display, SankeyGraph graph, SankeyLayout.Scene scene,
                       int yOffset, boolean showExpansionMarker, boolean exportColors)
     {
+        paint(gc, display, graph, scene, yOffset, showExpansionMarker, exportColors,
+            SankeyText.DetailOptions.DEFAULT);
+    }
+
+    static void paint(GC gc, Display display, SankeyGraph graph, SankeyLayout.Scene scene,
+                      int yOffset, boolean showExpansionMarker, boolean exportColors,
+                      SankeyText.DetailOptions detailOptions)
+    {
         gc.setAntialias(SWT.ON);
         if (graph == null || graph.nodes().isEmpty())
         {
@@ -25,21 +33,21 @@ final class SankeySwtRenderer
             return;
         }
         paintLinks(gc, display, scene, yOffset);
-        paintNodes(gc, display, graph, scene, yOffset, showExpansionMarker, exportColors);
+        paintNodes(gc, display, graph, scene, yOffset, showExpansionMarker, exportColors, detailOptions);
     }
 
     private static void paintLinks(GC gc, Display display, SankeyLayout.Scene scene, int yOffset)
     {
-        Color linkColor = new Color(display, 145, 145, 145);
-        gc.setBackground(linkColor);
         gc.setAlpha(90);
         try
         {
             for (SankeyLayout.LinkPlacement link : scene.links())
             {
                 Path path = new Path(display);
+                Color linkColor = color(display, link.color());
                 try
                 {
+                    gc.setBackground(linkColor);
                     float sy1 = link.sourceTop() + yOffset;
                     float sy2 = link.sourceBottom() + yOffset;
                     float ty1 = link.targetTop() + yOffset;
@@ -56,19 +64,20 @@ final class SankeySwtRenderer
                 finally
                 {
                     path.dispose();
+                    linkColor.dispose();
                 }
             }
         }
         finally
         {
             gc.setAlpha(255);
-            linkColor.dispose();
         }
     }
 
     private static void paintNodes(GC gc, Display display, SankeyGraph graph,
                                    SankeyLayout.Scene scene, int yOffset,
-                                   boolean showExpansionMarker, boolean exportColors)
+                                   boolean showExpansionMarker, boolean exportColors,
+                                   SankeyText.DetailOptions detailOptions)
     {
         for (SankeyLayout.NodePlacement placement : scene.nodes())
         {
@@ -89,14 +98,18 @@ final class SankeySwtRenderer
             }
 
             String marker = showExpansionMarker && placement.node().expandableKey() != null ? "  [+/-]" : "";
-            String text = placement.node().name() + marker + "\n" + SankeyText.detailLine(graph, placement.node());
+            String title = placement.node().name() + marker;
+            String details = SankeyText.detailLine(graph, placement.node(), detailOptions);
             int textX = placement.node().layer() == 0 ? Math.max(8, Math.round(bounds.x()) - 235)
                 : Math.round(bounds.x()) + 28;
-            int textY = Math.max(yOffset + 4,
-                Math.round(bounds.y() + bounds.height() / 2) + yOffset - 16);
+            int lineHeight = gc.getFontMetrics().getHeight();
+            int lineAdvance = Math.max(1, lineHeight - 4);
+            int textY = Math.max(yOffset + 4, Math.round(bounds.y() + bounds.height() / 2)
+                + yOffset - (lineHeight + lineAdvance) / 2);
             gc.setForeground(display.getSystemColor(exportColors
                 ? SWT.COLOR_BLACK : SWT.COLOR_WIDGET_FOREGROUND));
-            gc.drawText(text, textX, textY, true);
+            gc.drawText(title, textX, textY, true);
+            gc.drawText(details, textX, textY + lineAdvance, true);
         }
     }
 
