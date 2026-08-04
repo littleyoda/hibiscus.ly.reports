@@ -15,6 +15,7 @@ import de.open4me.hibiscus.reports.data.DynamicReportTests;
 import de.open4me.hibiscus.reports.mcp.McpJsonRpcHandlerTests;
 import de.open4me.hibiscus.reports.mcp.McpNetworkSettingsTests;
 import de.open4me.hibiscus.reports.automation.AutomationCoreTests;
+import de.open4me.hibiscus.reports.automation.sql.AutomationSqlDialectTests;
 import de.open4me.hibiscus.reports.automation.runtime.AutomationSyncTests;
 import de.open4me.hibiscus.reports.duplicates.DuplicateDetectorTests;
 
@@ -34,6 +35,7 @@ public final class CoreTests
         McpNetworkSettingsTests.run();
         McpJsonRpcHandlerTests.run();
         AutomationCoreTests.run();
+        AutomationSqlDialectTests.run();
         AutomationSyncTests.run();
         DuplicateDetectorTests.run();
         SankeyGraphBuilderTests.run();

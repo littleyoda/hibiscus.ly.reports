@@ -16,7 +16,13 @@ public final class AutomationSqlDialect
     public static AutomationSqlDialect detect(Connection connection) throws SQLException
     {
         String name = connection.getMetaData().getDatabaseProductName();
-        return new AutomationSqlDialect(name != null && name.toLowerCase(Locale.ROOT).contains("mysql"));
+        return forProductName(name);
+    }
+
+    static AutomationSqlDialect forProductName(String name)
+    {
+        String normalized = name == null ? "" : name.toLowerCase(Locale.ROOT);
+        return new AutomationSqlDialect(normalized.contains("mysql") || normalized.contains("mariadb"));
     }
 
     public String idColumn()
