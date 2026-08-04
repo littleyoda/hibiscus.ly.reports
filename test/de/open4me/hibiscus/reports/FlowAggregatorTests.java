@@ -13,6 +13,7 @@ final class FlowAggregatorTests
     static void run()
     {
         aggregatesAndNetsCategoryPaths();
+        aggregatesExpensesByFirstChildCategory();
         filtersPendingAndSkippedAndShowsUnassigned();
         calculatesInclusiveMonthCount();
     }
@@ -41,6 +42,30 @@ final class FlowAggregatorTests
         checkEquals("Supermarkt", report.expenses().get(0).children().get(0).name(), "child label");
         checkEquals(0x654321, report.expenses().get(0).color(), "custom category color");
         checkEquals(12, report.monthCount(), "month count");
+    }
+
+    private static void aggregatesExpensesByFirstChildCategory()
+    {
+        CategoryInfo housing = category("44", "44 Wohnen", false, 0x654321);
+        CategoryInfo consumption = category("441", "Verbrauch", false, 0x123456);
+        CategoryInfo electricity = category("4411", "Strom", false, null);
+        CategoryInfo water = category("4412", "Wasser", false, null);
+        CategoryInfo garden = category("442", "Garten", false, null);
+
+        FlowReport report = new FlowAggregator().aggregate(List.of(
+            booking(-40, housing, consumption, electricity),
+            booking(-30, housing, consumption, water),
+            booking(-20, housing, garden),
+            booking(-10, housing)),
+            LocalDate.of(2025, 1, 1), LocalDate.of(2025, 1, 31));
+
+        FlowReport.ExpenseGroup group = report.expenses().get(0);
+        checkEquals("44 Wohnen", group.name(), "collapsed group name");
+        checkEquals(100d, group.amount(), "collapsed group total");
+        checkEquals(3, group.children().size(), "collapsed first child count");
+        checkChild(group, "441", "Verbrauch", 70d, true);
+        checkChild(group, "442", "Garten", 20d, true);
+        checkChild(group, "44", "Sonstiges", 10d, false);
     }
 
     private static void filtersPendingAndSkippedAndShowsUnassigned()
@@ -98,6 +123,16 @@ final class FlowAggregatorTests
     private static CategoryInfo category(String id, String name, boolean skip, Integer color)
     {
         return new CategoryInfo(id, name, skip, color);
+    }
+
+    private static void checkChild(FlowReport.ExpenseGroup group, String key, String name, double amount,
+                                   boolean includeChildren)
+    {
+        FlowReport.Value child = group.children().stream().filter(value -> value.key().equals(key)).findFirst()
+            .orElseThrow(() -> new AssertionError("missing child " + key));
+        checkEquals(name, child.name(), "child name " + key);
+        checkEquals(amount, child.amount(), "child amount " + key);
+        checkEquals(includeChildren, child.includeChildren(), "child include children " + key);
     }
 
     static void check(boolean condition, String message)

@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Map;
 
 import org.eclipse.swt.SWT;
+import org.eclipse.swt.graphics.Color;
 import org.eclipse.swt.layout.GridData;
 import org.eclipse.swt.layout.GridLayout;
 import org.eclipse.swt.widgets.Button;
@@ -76,6 +77,10 @@ abstract class AbstractAutomationStartBox extends AbstractBox
         Button run = new Button(root, SWT.PUSH);
         run.setText(automation.name());
         run.setLayoutData(new GridData(SWT.LEFT, SWT.TOP, false, false));
+        Color runBackground = new Color(parent.getDisplay(), 44, 160, 44);
+        run.setBackground(runBackground);
+        run.setForeground(parent.getDisplay().getSystemColor(SWT.COLOR_WHITE));
+        run.addListener(SWT.Dispose, event -> runBackground.dispose());
 
         Label lastRun = new Label(root, SWT.WRAP);
         lastRun.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));

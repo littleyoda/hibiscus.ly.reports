@@ -68,8 +68,9 @@ public class SankeyGraphBuilder
                 for (FlowReport.Value child : children)
                 {
                     String childId = "sub:" + child.key();
-                    SankeyGraph.TransactionFilter childFilter = transactionFilter(child.key(), false, -1);
-                    nodes.add(new SankeyGraph.Node(childId, child.name(), child.amount(), expenseTotal,
+                    SankeyGraph.TransactionFilter childFilter = transactionFilter(child.key(),
+                        child.includeChildren(), -1);
+                    nodes.add(new SankeyGraph.Node(childId, child.name(), child.amount(), available,
                         child.color(), 3, null, childFilter));
                     links.add(new SankeyGraph.Link(id, childId, child.amount()));
                 }

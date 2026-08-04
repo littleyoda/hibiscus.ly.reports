@@ -16,6 +16,7 @@ final class SankeyGraphBuilderTests
     {
         createsBalancedSurplusGraph();
         createsBalancedDeficitGraph();
+        createsChildFiltersForCollapsedExpenseCategories();
         bundlesSmallFlowsWithoutLosingValue();
         keepsUnassignedFlowsVisibleBelowThreshold();
         leavesEmptyReportsEmpty();
@@ -32,9 +33,26 @@ final class SankeyGraphBuilderTests
         checkNode(graph, "sub:rent", 2000d);
         checkPercentageBase(graph, "expense:housing", 3000d);
         checkPercentageBase(graph, "surplus", 3000d);
-        checkPercentageBase(graph, "sub:rent", 2000d);
+        checkPercentageBase(graph, "sub:rent", 3000d);
         checkFilter(graph, "expense:housing", "housing", true, false);
         checkFilter(graph, "sub:rent", "rent", false, false);
+        checkConservation(graph);
+    }
+
+    private static void createsChildFiltersForCollapsedExpenseCategories()
+    {
+        FlowReport report = new FlowReport(
+            List.of(value("salary", "Gehalt", 1000)),
+            List.of(group("housing", "Wohnen", 1000,
+                value("consumption", "Verbrauch", 700, true),
+                value("garden", "Garten", 200, true),
+                value("housing", "Sonstiges", 100, false))),
+            1);
+        SankeyGraph graph = new SankeyGraphBuilder().build(report, Set.of("housing"), 0d);
+
+        checkFilter(graph, "sub:consumption", "consumption", true, false);
+        checkFilter(graph, "sub:garden", "garden", true, false);
+        checkFilter(graph, "sub:housing", "housing", false, false);
         checkConservation(graph);
     }
 
@@ -111,6 +129,11 @@ final class SankeyGraphBuilderTests
     private static FlowReport.Value value(String key, String name, double amount)
     {
         return new FlowReport.Value(key, name, amount, 0x123456);
+    }
+
+    private static FlowReport.Value value(String key, String name, double amount, boolean includeChildren)
+    {
+        return new FlowReport.Value(key, name, amount, 0x123456, includeChildren);
     }
 
     private static FlowReport.ExpenseGroup group(String key, String name, double amount, FlowReport.Value... values)

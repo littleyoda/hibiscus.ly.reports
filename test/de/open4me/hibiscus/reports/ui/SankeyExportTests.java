@@ -22,6 +22,7 @@ public final class SankeyExportTests
         formatsPercentagesFromNodeBase();
         formatsOptionalDetailParts();
         calculatesSharedLayoutAndPngDimensions();
+        exportsSankeyMaticText();
         normalizesSelectedFileExtension();
     }
 
@@ -90,8 +91,38 @@ public final class SankeyExportTests
     {
         check("geldfluss.svg".equals(ExportFileNames.withExtension("geldfluss.png", ".svg")),
             "replace selected extension");
+        check("geldfluss.txt".equals(ExportFileNames.withExtension("geldfluss.svg", ".txt")),
+            "replace selected svg extension");
+        check("geldfluss.png".equals(ExportFileNames.withExtension("geldfluss.txt", ".png")),
+            "replace selected txt extension");
         check("geldfluss.png".equals(ExportFileNames.withExtension("geldfluss", ".png")),
             "append selected extension");
+    }
+
+    private static void exportsSankeyMaticText()
+    {
+        SankeyGraph graph = new SankeyGraph(List.of(
+            new SankeyGraph.Node("income", "Einkommen [2025]", 100.50d, 100.50d, 0x239b56, 0, null, null),
+            new SankeyGraph.Node("available", "Verfügbare Mittel", 100.50d, 100.50d, 0x2ca02c, 1, null, null),
+            new SankeyGraph.Node("expense", "Ausgabe #abc", 70d, 100.50d, 0xe67e22, 2, null, null),
+            new SankeyGraph.Node("expense2", "Ausgabe #abc", 30.5d, 100.50d, 0xd35400, 2, null, null)),
+            List.of(
+                new SankeyGraph.Link("income", "available", 100.50d),
+                new SankeyGraph.Link("available", "expense", 70d),
+                new SankeyGraph.Link("available", "expense2", 30.5d)),
+            12, 100.50d, 100.50d);
+
+        String text = SankeyTextExporter.create(graph, LocalDate.of(2025, 1, 15),
+            LocalDate.of(2025, 12, 20));
+        check(text.contains("// Geldfluss"), "text export title comment");
+        check(text.contains("// Zeitraum: 15.01.2025 – 20.12.2025"), "text export period comment");
+        check(text.contains("Einkommen (2025) [101] Verfügbare Mittel #239b56"),
+            "text export flow syntax and source color");
+        check(text.contains("Verfügbare Mittel [70] Ausgabe Nr. abc #e67e22"),
+            "text export target color");
+        check(text.contains("Verfügbare Mittel [31] Ausgabe Nr. abc (2) #d35400"),
+            "text export duplicate labels");
+        check(text.contains(":Einkommen (2025) #239b56"), "text export node color");
     }
 
     private static SankeyGraph graph()

@@ -74,14 +74,17 @@ public class FlowAggregator
                 String rootKey = root.id();
                 MutableExpense group = expenses.computeIfAbsent(rootKey,
                     ignored -> new MutableExpense(rootKey, root.name(), color(root, DEFAULT_EXPENSE_COLOR)));
-                String childName = path.size() == 1
-                    ? "Sonstiges"
-                    : path.subList(1, path.size()).stream().map(CategoryInfo::name)
-                        .reduce((a, b) -> a + " > " + b).orElse("Sonstiges");
-                String childKey = leaf.id();
+                CategoryInfo childCategory = path.size() == 1 ? null : path.get(1);
+                String childName = childCategory == null ? "Sonstiges" : childCategory.name();
+                String childKey = childCategory == null ? root.id() : childCategory.id();
+                boolean includeChildren = childCategory != null;
+                int childColor = childCategory == null
+                    ? color(leaf, DEFAULT_SUB_EXPENSE_COLOR)
+                    : color(childCategory, DEFAULT_SUB_EXPENSE_COLOR);
                 MutableValue child = group.children.computeIfAbsent(childKey,
-                    ignored -> new MutableValue(childKey, childName, color(leaf, DEFAULT_SUB_EXPENSE_COLOR)));
+                    ignored -> new MutableValue(childKey, childName, childColor, includeChildren));
                 child.amount += Math.abs(total.amount);
+                child.includeChildren |= includeChildren;
             }
         }
 
@@ -147,18 +150,25 @@ public class FlowAggregator
         private final String key;
         private final String name;
         private final int color;
+        private boolean includeChildren;
         private double amount;
 
         private MutableValue(String key, String name, int color)
         {
+            this(key, name, color, false);
+        }
+
+        private MutableValue(String key, String name, int color, boolean includeChildren)
+        {
             this.key = key;
             this.name = name;
             this.color = color;
+            this.includeChildren = includeChildren;
         }
 
         private FlowReport.Value freeze()
         {
-            return new FlowReport.Value(key, name, amount, color);
+            return new FlowReport.Value(key, name, amount, color, includeChildren);
         }
     }
 

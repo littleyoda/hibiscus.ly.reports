@@ -26,8 +26,12 @@ public record FlowReport(List<Value> incomes, List<ExpenseGroup> expenses, int m
         return incomeTotal() - expenseTotal();
     }
 
-    public record Value(String key, String name, double amount, int color)
+    public record Value(String key, String name, double amount, int color, boolean includeChildren)
     {
+        public Value(String key, String name, double amount, int color)
+        {
+            this(key, name, amount, color, false);
+        }
     }
 
     public record ExpenseGroup(String key, String name, double amount, int color, List<Value> children)
@@ -38,4 +42,3 @@ public record FlowReport(List<Value> incomes, List<ExpenseGroup> expenses, int m
         }
     }
 }
-

@@ -36,20 +36,20 @@ final class FlowExportService
             throw new ApplicationException("Es ist keine Geldflussgrafik zum Exportieren vorhanden.");
 
         FileDialog dialog = new FileDialog(GUI.getShell(), SWT.SAVE);
-        dialog.setText("Geldflussgrafik exportieren");
-        dialog.setFilterNames(new String[] { "PNG-Grafik (*.png)", "SVG-Grafik (*.svg)" });
-        dialog.setFilterExtensions(new String[] { "*.png", "*.svg" });
+        dialog.setText("Geldfluss exportieren");
+        dialog.setFilterNames(new String[] { "PNG-Grafik (*.png)", "SVG-Grafik (*.svg)",
+            "SankeyMATIC-Text (*.txt)" });
+        dialog.setFilterExtensions(new String[] { "*.png", "*.svg", "*.txt" });
         dialog.setFilterIndex(SETTINGS.getInt("format", 0));
         dialog.setOverwrite(false);
         dialog.setFilterPath(SETTINGS.getString("lastdir", System.getProperty("user.home")));
-        dialog.setFileName(defaultName(from, to) + (dialog.getFilterIndex() == 1 ? ".svg" : ".png"));
+        dialog.setFileName(defaultName(from, to) + extension(dialog.getFilterIndex()));
         String selected = dialog.open();
         if (selected == null || selected.isBlank())
             return;
 
-        int format = dialog.getFilterIndex() == 1 ? 1 : 0;
-        String extension = format == 1 ? ".svg" : ".png";
-        selected = ExportFileNames.withExtension(selected, extension);
+        int format = Math.min(Math.max(dialog.getFilterIndex(), 0), 2);
+        selected = ExportFileNames.withExtension(selected, extension(format));
         File file = new File(selected);
         try
         {
@@ -71,6 +71,11 @@ final class FlowExportService
                 Files.writeString(Path.of(selected), SankeySvgExporter.create(graph, from, to, detailOptions),
                     StandardCharsets.UTF_8);
             }
+            else if (format == 2)
+            {
+                Files.writeString(Path.of(selected), SankeyTextExporter.create(graph, from, to),
+                    StandardCharsets.UTF_8);
+            }
             else
             {
                 SankeyPngExporter.save(GUI.getDisplay(), graph, from, to, selected, detailOptions);
@@ -88,6 +93,15 @@ final class FlowExportService
     private static String defaultName(LocalDate from, LocalDate to)
     {
         return "geldfluss-" + (from == null ? "start" : from) + "-bis-" + (to == null ? "heute" : to);
+    }
+
+    private static String extension(int format)
+    {
+        if (format == 1)
+            return ".svg";
+        if (format == 2)
+            return ".txt";
+        return ".png";
     }
 
 }

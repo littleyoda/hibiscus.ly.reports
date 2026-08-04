@@ -37,6 +37,7 @@
   </p>
 
   <p>
-    Das Export-Symbol speichert die aktuelle Grafik als PNG oder SVG.
+    Das Export-Symbol speichert die aktuelle Grafik als PNG, SVG oder als
+    SankeyMATIC-kompatible Textdatei.
   </p>
 </form>

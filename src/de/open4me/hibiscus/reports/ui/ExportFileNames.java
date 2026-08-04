@@ -13,9 +13,8 @@ final class ExportFileNames
         String lower = filename.toLowerCase(Locale.ROOT);
         if (lower.endsWith(extension))
             return filename;
-        if (lower.endsWith(".png") || lower.endsWith(".svg"))
+        if (lower.endsWith(".png") || lower.endsWith(".svg") || lower.endsWith(".txt"))
             return filename.substring(0, filename.length() - 4) + extension;
         return filename + extension;
     }
 }
-
