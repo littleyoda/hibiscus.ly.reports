@@ -3,6 +3,7 @@ package de.open4me.hibiscus.reports.mcp;
 import java.io.IOException;
 
 import de.open4me.hibiscus.reports.data.HibiscusReportAccountProvider;
+import de.open4me.hibiscus.reports.data.HibiscusReportCategoryProvider;
 import de.open4me.hibiscus.reports.data.HibiscusReportTransactionProvider;
 import de.open4me.hibiscus.reports.data.ReportTemplateContextFactory;
 import de.willuhn.logging.Logger;
@@ -64,7 +65,8 @@ public final class McpServerManager
         ReportTemplateContextFactory contextFactory = new ReportTemplateContextFactory(
             new HibiscusReportAccountProvider(transactions), transactions);
         server = new McpHttpServer(McpSettings.getPort(), McpSettings.bindAddress(),
-            McpSettings.isLocalNetworkEnabled(), token, new McpJsonRpcHandler(contextFactory, transactions));
+            McpSettings.isLocalNetworkEnabled(), token,
+            new McpJsonRpcHandler(contextFactory, transactions, new HibiscusReportCategoryProvider()));
         server.start();
         Logger.info("reports MCP server started at " + McpSettings.endpoint());
     }

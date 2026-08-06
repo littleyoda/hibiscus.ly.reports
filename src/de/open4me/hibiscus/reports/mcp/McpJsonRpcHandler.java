@@ -24,11 +24,14 @@ import com.hubspot.jinjava.interpret.RenderResult;
 import com.hubspot.jinjava.interpret.TemplateError;
 
 import de.open4me.hibiscus.reports.api.ReportTemplateContext;
+import de.open4me.hibiscus.reports.data.HibiscusReportCategoryProvider;
+import de.open4me.hibiscus.reports.data.ReportCategoryProvider;
 import de.open4me.hibiscus.reports.data.ReportAccountGroupsProxy;
 import de.open4me.hibiscus.reports.data.ReportAccountsProxy;
 import de.open4me.hibiscus.reports.data.ReportTemplateContextFactory;
 import de.open4me.hibiscus.reports.data.ReportTransactionProvider;
 import de.open4me.hibiscus.reports.data.ReportTransactionsProxy;
+import de.open4me.hibiscus.reports.model.CategoryInfo;
 import de.open4me.hibiscus.reports.model.ReportAccount;
 import de.open4me.hibiscus.reports.model.ReportAccountGroup;
 import de.open4me.hibiscus.reports.model.ReportTransaction;
@@ -40,6 +43,7 @@ public final class McpJsonRpcHandler
     private final ObjectMapper mapper = new ObjectMapper();
     private final ReportTemplateContextFactory contextFactory;
     private final ReportTransactionProvider transactionProvider;
+    private final ReportCategoryProvider categoryProvider;
     private final SepaTransferDraftWriter transferDraftWriter;
     private final McpAccountSynchronizer accountSynchronizer;
     private final BooleanSupplier writeEnabled;
@@ -47,26 +51,38 @@ public final class McpJsonRpcHandler
     public McpJsonRpcHandler(ReportTemplateContextFactory contextFactory,
                              ReportTransactionProvider transactionProvider)
     {
-        this(contextFactory, transactionProvider, new HibiscusSepaTransferDraftWriter(), McpSettings::isWriteEnabled);
+        this(contextFactory, transactionProvider, new HibiscusReportCategoryProvider());
+    }
+
+    public McpJsonRpcHandler(ReportTemplateContextFactory contextFactory,
+                             ReportTransactionProvider transactionProvider,
+                             ReportCategoryProvider categoryProvider)
+    {
+        this(contextFactory, transactionProvider, categoryProvider, new HibiscusSepaTransferDraftWriter(),
+            McpSettings::isWriteEnabled);
     }
 
     McpJsonRpcHandler(ReportTemplateContextFactory contextFactory,
                       ReportTransactionProvider transactionProvider,
+                      ReportCategoryProvider categoryProvider,
                       SepaTransferDraftWriter transferDraftWriter,
                       BooleanSupplier writeEnabled)
     {
-        this(contextFactory, transactionProvider, transferDraftWriter, new HibiscusMcpAccountSynchronizer(),
+        this(contextFactory, transactionProvider, categoryProvider, transferDraftWriter,
+            new HibiscusMcpAccountSynchronizer(),
             writeEnabled);
     }
 
     McpJsonRpcHandler(ReportTemplateContextFactory contextFactory,
                       ReportTransactionProvider transactionProvider,
+                      ReportCategoryProvider categoryProvider,
                       SepaTransferDraftWriter transferDraftWriter,
                       McpAccountSynchronizer accountSynchronizer,
                       BooleanSupplier writeEnabled)
     {
         this.contextFactory = contextFactory;
         this.transactionProvider = transactionProvider;
+        this.categoryProvider = categoryProvider;
         this.transferDraftWriter = transferDraftWriter;
         this.accountSynchronizer = accountSynchronizer;
         this.writeEnabled = writeEnabled;
@@ -153,20 +169,22 @@ public final class McpJsonRpcHandler
             schema()));
         tools.add(tool("hibiscus_template_render", "Template rendern",
             "Rendert einen Jinjava-Template-String gegen den aktuellen Template-Kontext.",
-            schema(Map.of("template", "string"))));
+            templateRenderSchema()));
         tools.add(tool("hibiscus_accounts_list", "Konten auflisten",
             "Listet aktive oder alle Hibiscus-Konten.",
-            schema(Map.of("scope", "string"))));
+            scopedListSchema("Konten-Umfang: 'active' fuer aktive Konten (Standard) oder 'all' fuer alle Konten.")));
         tools.add(tool("hibiscus_accounts_sync", "Konten synchronisieren",
             "Synchronisiert Hibiscus-Konten ueber die registrierten Synchronisierungs-Backends.",
             syncSchema()));
         tools.add(tool("hibiscus_account_groups_list", "Kontogruppen auflisten",
             "Listet aktive oder alle Kontogruppen, optional inklusive Konten.",
-            schema(Map.of("scope", "string", "includeAccounts", "boolean"))));
+            accountGroupsSchema()));
+        tools.add(tool("hibiscus_categories_list", "Kategorien auflisten",
+            "Listet alle Hibiscus-Umsatzkategorien mit IDs und Hierarchiepfaden.",
+            categoriesSchema()));
         tools.add(tool("hibiscus_transactions_list", "Umsaetze auflisten",
             "Listet Umsaetze mit Zeitraum-, Konto- und Limit-Filtern.",
-            schema(Map.of("accountId", "string", "from", "string", "to", "string",
-                "lastDays", "integer", "limit", "integer", "all", "boolean"))));
+            transactionsSchema()));
         tools.add(tool("hibiscus_sepa_transfer_create", "SEPA-Ueberweisungsentwurf anlegen",
             "Legt einen lokalen SEPA-Ueberweisungsentwurf in Hibiscus an. Der Auftrag wird nicht an die Bank gesendet.",
             sepaTransferSchema()));
@@ -198,6 +216,7 @@ public final class McpJsonRpcHandler
             case "hibiscus_accounts_list" -> toolResult(accounts(arguments), "Konten geladen.");
             case "hibiscus_accounts_sync" -> toolResult(syncAccounts(arguments), "Kontensynchronisierung beendet.");
             case "hibiscus_account_groups_list" -> toolResult(accountGroups(arguments), "Kontogruppen geladen.");
+            case "hibiscus_categories_list" -> toolResult(categories(arguments), "Kategorien geladen.");
             case "hibiscus_transactions_list" -> toolResult(transactions(arguments), "Umsaetze geladen.");
             case "hibiscus_sepa_transfer_create" -> toolResult(createSepaTransferDraft(arguments),
                 "SEPA-Ueberweisungsentwurf angelegt.");
@@ -379,6 +398,31 @@ public final class McpJsonRpcHandler
         return result;
     }
 
+    private ObjectNode categories(JsonNode arguments)
+    {
+        boolean includeSkipped = bool(arguments.get("includeSkipped"), true);
+        ObjectNode result = mapper.createObjectNode();
+        ArrayNode array = result.putArray("categories");
+        try
+        {
+            for (List<CategoryInfo> path : categoryProvider.loadCategoryPaths())
+            {
+                if (path.isEmpty())
+                    continue;
+                CategoryInfo category = path.get(path.size() - 1);
+                if (!includeSkipped && path.stream().anyMatch(CategoryInfo::skipReports))
+                    continue;
+                array.add(category(category, path));
+            }
+        }
+        catch (Exception e)
+        {
+            throw new IllegalStateException("Kategorien konnten nicht geladen werden: " + e.getMessage(), e);
+        }
+        result.put("count", array.size());
+        return result;
+    }
+
     private ObjectNode transactions(JsonNode arguments)
     {
         String accountId = text(arguments.get("accountId"));
@@ -394,6 +438,9 @@ public final class McpJsonRpcHandler
         String to = text(arguments.get("to"));
         if (from != null && !from.isBlank() && to != null && !to.isBlank())
             proxy = proxy.zeitraum(from, to);
+        List<String> categoryIds = strings(arguments, "categoryId", "categoryIds");
+        if (!categoryIds.isEmpty())
+            proxy = proxy.kategorien(categoryIds, bool(arguments.get("includeSubcategories"), false));
         Integer limit = integer(arguments.get("limit"));
         if (limit != null)
             proxy = proxy.limit(limit);
@@ -579,6 +626,29 @@ public final class McpJsonRpcHandler
         return node;
     }
 
+    private ObjectNode category(CategoryInfo category, List<CategoryInfo> path)
+    {
+        ObjectNode node = mapper.createObjectNode();
+        node.put("id", category.id());
+        node.put("name", category.name());
+        if (path.size() > 1)
+            node.put("parentId", path.get(path.size() - 2).id());
+        else
+            node.putNull("parentId");
+        node.put("level", Math.max(0, path.size() - 1));
+        node.put("path", path.stream().map(CategoryInfo::name)
+            .reduce((left, right) -> left + " > " + right).orElse(category.name()));
+        ArrayNode pathIds = node.putArray("pathIds");
+        path.forEach(item -> pathIds.add(item.id()));
+        if (category.color() == null)
+            node.putNull("color");
+        else
+            node.put("color", category.color());
+        node.put("skipReports", category.skipReports());
+        node.put("transactionsTool", "hibiscus_transactions_list");
+        return node;
+    }
+
     private ObjectNode toolResult(JsonNode structured, String text)
     {
         ObjectNode result = mapper.createObjectNode();
@@ -620,33 +690,102 @@ public final class McpJsonRpcHandler
         return schema;
     }
 
-    private ObjectNode schema(Map<String, String> properties)
-    {
-        ObjectNode schema = schema();
-        ObjectNode props = (ObjectNode) schema.get("properties");
-        properties.forEach((name, type) -> props.putObject(name).put("type", type));
-        return schema;
-    }
-
     private ObjectNode syncSchema()
     {
         ObjectNode schema = schema();
         ObjectNode props = (ObjectNode) schema.get("properties");
-        property(props, "all", "boolean", "Alle synchronisierbaren Konten");
-        property(props, "accountId", "string", "Konto-ID");
-        arrayProperty(props, "accountIds", "Konto-IDs");
-        property(props, "iban", "string", "IBAN");
-        arrayProperty(props, "ibans", "IBANs");
-        property(props, "kundennummer", "string", "Kundennummer");
-        arrayProperty(props, "kundennummern", "Kundennummern");
-        property(props, "kundenkennung", "string", "Kundenkennung");
-        arrayProperty(props, "kundenkennungen", "Kundenkennungen");
-        property(props, "kontonummer", "string", "Kontonummer");
-        arrayProperty(props, "kontonummern", "Kontonummern");
-        property(props, "bezeichnung", "string", "Bezeichnung");
-        arrayProperty(props, "bezeichnungen", "Bezeichnungen");
-        property(props, "backendClass", "string", "Backend-Klasse");
-        arrayProperty(props, "backendClasses", "Backend-Klassen");
+        property(props, "all", "boolean", "Alle synchronisierbaren Konten",
+            "Wenn true, werden alle synchronisierbaren Konten synchronisiert und Auswahlfelder ignoriert.");
+        property(props, "accountId", "string", "Konto-ID",
+            "Exakte Hibiscus-Konto-ID eines zu synchronisierenden Kontos.");
+        arrayProperty(props, "accountIds", "Konto-IDs",
+            "Liste exakter Hibiscus-Konto-IDs.");
+        property(props, "iban", "string", "IBAN",
+            "IBAN eines zu synchronisierenden Kontos; Leerzeichen sind erlaubt.");
+        arrayProperty(props, "ibans", "IBANs",
+            "Liste von IBANs; Leerzeichen sind erlaubt.");
+        property(props, "kundennummer", "string", "Kundennummer",
+            "Kundennummer eines zu synchronisierenden Kontos.");
+        arrayProperty(props, "kundennummern", "Kundennummern",
+            "Liste von Kundennummern.");
+        property(props, "kundenkennung", "string", "Kundenkennung",
+            "Kundenkennung eines zu synchronisierenden Kontos.");
+        arrayProperty(props, "kundenkennungen", "Kundenkennungen",
+            "Liste von Kundenkennungen.");
+        property(props, "kontonummer", "string", "Kontonummer",
+            "Kontonummer eines zu synchronisierenden Kontos.");
+        arrayProperty(props, "kontonummern", "Kontonummern",
+            "Liste von Kontonummern.");
+        property(props, "bezeichnung", "string", "Bezeichnung",
+            "Exakte Kontobezeichnung eines zu synchronisierenden Kontos.");
+        arrayProperty(props, "bezeichnungen", "Bezeichnungen",
+            "Liste exakter Kontobezeichnungen.");
+        property(props, "backendClass", "string", "Backend-Klasse",
+            "Vollqualifizierter Backend-Klassenname; synchronisiert passende Konten.");
+        arrayProperty(props, "backendClasses", "Backend-Klassen",
+            "Liste vollqualifizierter Backend-Klassennamen.");
+        return schema;
+    }
+
+    private ObjectNode templateRenderSchema()
+    {
+        ObjectNode schema = schema();
+        ObjectNode props = (ObjectNode) schema.get("properties");
+        property(props, "template", "string", "Template",
+            "Jinjava-Template-String, der gegen den Hibiscus-Report-Kontext gerendert wird.");
+        schema.putArray("required").add("template");
+        return schema;
+    }
+
+    private ObjectNode scopedListSchema(String scopeDescription)
+    {
+        ObjectNode schema = schema();
+        ObjectNode props = (ObjectNode) schema.get("properties");
+        enumProperty(props, "scope", "Umfang", scopeDescription, "active", "all");
+        return schema;
+    }
+
+    private ObjectNode accountGroupsSchema()
+    {
+        ObjectNode schema = scopedListSchema("Kontogruppen-Umfang: 'active' fuer aktive Kontogruppen "
+            + "(Standard) oder 'all' fuer alle Kontogruppen.");
+        ObjectNode props = (ObjectNode) schema.get("properties");
+        property(props, "includeAccounts", "boolean", "Konten einschliessen",
+            "Wenn true, enthaelt jede Kontogruppe eine flache Liste ihrer Konten.");
+        return schema;
+    }
+
+    private ObjectNode transactionsSchema()
+    {
+        ObjectNode schema = schema();
+        ObjectNode props = (ObjectNode) schema.get("properties");
+        property(props, "accountId", "string", "Konto-ID",
+            "Optionale Hibiscus-Konto-ID. Wenn nicht gesetzt, werden Umsaetze kontoübergreifend gesucht.");
+        property(props, "categoryId", "string", "Kategorie-ID",
+            "Optionale Kategorie-ID aus hibiscus_categories_list. Standard: nur direkt auf diese Kategorie gebuchte Umsaetze.");
+        arrayProperty(props, "categoryIds", "Kategorie-IDs",
+            "Optionale Liste von Kategorie-IDs aus hibiscus_categories_list.");
+        property(props, "includeSubcategories", "boolean", "Unterkategorien einschliessen",
+            "Wenn true, matchen categoryId/categoryIds auch Umsaetze in Unterkategorien.");
+        dateProperty(props, "from", "Von",
+            "Startdatum inklusive im ISO-Format YYYY-MM-DD. Wirkt nur zusammen mit 'to'.");
+        dateProperty(props, "to", "Bis",
+            "Enddatum inklusive im ISO-Format YYYY-MM-DD. Wirkt nur zusammen mit 'from'.");
+        property(props, "lastDays", "integer", "Letzte Tage",
+            "Relativer Zeitraum von heute rueckwaerts. 0 bedeutet nur heute.");
+        property(props, "limit", "integer", "Limit",
+            "Maximale Anzahl zurueckgegebener Umsaetze.");
+        property(props, "all", "boolean", "Alle Umsaetze",
+            "Wenn true, wird der Standardzeitraum der letzten 90 Tage aufgehoben. Zeitraum-Filter koennen danach weiter einschraenken.");
+        return schema;
+    }
+
+    private ObjectNode categoriesSchema()
+    {
+        ObjectNode schema = schema();
+        ObjectNode props = (ObjectNode) schema.get("properties");
+        property(props, "includeSkipped", "boolean", "Ausgeschlossene Kategorien einschliessen",
+            "Wenn false, werden Kategorien ausgeblendet, die fuer Reports ausgeschlossen sind oder einen ausgeschlossenen Elternknoten haben. Standard ist true.");
         return schema;
     }
 
@@ -654,25 +793,34 @@ public final class McpJsonRpcHandler
     {
         ObjectNode schema = schema();
         ObjectNode props = (ObjectNode) schema.get("properties");
-        property(props, "accountId", "string", label("accountId"));
-        property(props, "recipientName", "string", label("recipientName"));
-        property(props, "recipientIban", "string", label("recipientIban"));
-        property(props, "recipientBic", "string", label("recipientBic"));
-        property(props, "amount", "number", label("amount"));
-        property(props, "purpose", "string", label("purpose"));
-        property(props, "purpose2", "string", label("purpose2"));
-        property(props, "additionalPurposes", "array", label("additionalPurposes"))
+        property(props, "accountId", "string", label("accountId"),
+            "Hibiscus-Konto-ID des Auftraggeberkontos.");
+        property(props, "recipientName", "string", label("recipientName"),
+            "Name des Zahlungsempfaengers.");
+        property(props, "recipientIban", "string", label("recipientIban"),
+            "IBAN des Zahlungsempfaengers; Leerzeichen werden entfernt.");
+        property(props, "recipientBic", "string", label("recipientBic"),
+            "Optionale BIC des Zahlungsempfaengers; Leerzeichen werden entfernt.");
+        property(props, "amount", "number", label("amount"),
+            "Positiver Betrag in Euro. Dezimalpunkt oder Dezimalkomma sind erlaubt.");
+        property(props, "purpose", "string", label("purpose"),
+            "Erste Zeile des Verwendungszwecks.");
+        property(props, "purpose2", "string", label("purpose2"),
+            "Zweite Zeile des Verwendungszwecks.");
+        property(props, "additionalPurposes", "array", label("additionalPurposes"),
+            "Weitere Verwendungszweck-Zeilen.")
             .putObject("items").put("type", "string");
-        property(props, "executionDate", "string", label("executionDate"));
-        property(props, "endToEndId", "string", label("endToEndId"));
-        property(props, "pmtInfId", "string", label("pmtInfId"));
-        property(props, "purposeCode", "string", label("purposeCode"));
-        ObjectNode type = property(props, "type", "string", label("type"));
-        ArrayNode typeValues = type.putArray("enum");
-        typeValues.add("Überweisung");
-        typeValues.add("Terminüberweisung");
-        typeValues.add("Interne Umbuchung");
-        typeValues.add("Echtzeitüberweisung");
+        dateProperty(props, "executionDate", label("executionDate"),
+            "Ausfuehrungsdatum im ISO-Format YYYY-MM-DD. Wenn nicht gesetzt, wird heute verwendet.");
+        property(props, "endToEndId", "string", label("endToEndId"),
+            "Optionale SEPA End-to-End-ID.");
+        property(props, "pmtInfId", "string", label("pmtInfId"),
+            "Optionale SEPA Payment-Information-ID.");
+        property(props, "purposeCode", "string", label("purposeCode"),
+            "Optionaler SEPA Purpose-Code, z. B. vierstelliger ISO-Code.");
+        ObjectNode type = enumProperty(props, "type", label("type"),
+            "Optionale Ueberweisungsart. Wenn nicht gesetzt, verwendet Hibiscus den Standard.",
+            "Überweisung", "Terminüberweisung", "Interne Umbuchung", "Echtzeitüberweisung");
         ArrayNode required = schema.putArray("required");
         required.add("accountId");
         required.add("recipientName");
@@ -760,16 +908,49 @@ public final class McpJsonRpcHandler
 
     private static ObjectNode property(ObjectNode properties, String name, String type, String title)
     {
+        return property(properties, name, type, title, null);
+    }
+
+    private static ObjectNode property(ObjectNode properties, String name, String type, String title,
+                                       String description)
+    {
         ObjectNode property = properties.putObject(name);
         property.put("type", type);
         property.put("title", title);
+        if (description != null && !description.isBlank())
+            property.put("description", description);
         return property;
     }
 
     private static ObjectNode arrayProperty(ObjectNode properties, String name, String title)
     {
-        ObjectNode property = property(properties, name, "array", title);
+        return arrayProperty(properties, name, title, null);
+    }
+
+    private static ObjectNode arrayProperty(ObjectNode properties, String name, String title,
+                                            String description)
+    {
+        ObjectNode property = property(properties, name, "array", title, description);
         property.putObject("items").put("type", "string");
+        return property;
+    }
+
+    private static ObjectNode dateProperty(ObjectNode properties, String name, String title,
+                                           String description)
+    {
+        ObjectNode property = property(properties, name, "string", title, description);
+        property.put("format", "date");
+        property.put("pattern", "^\\d{4}-\\d{2}-\\d{2}$");
+        return property;
+    }
+
+    private static ObjectNode enumProperty(ObjectNode properties, String name, String title,
+                                           String description, String... values)
+    {
+        ObjectNode property = property(properties, name, "string", title, description);
+        ArrayNode enumValues = property.putArray("enum");
+        for (String value : values)
+            enumValues.add(value);
         return property;
     }
 

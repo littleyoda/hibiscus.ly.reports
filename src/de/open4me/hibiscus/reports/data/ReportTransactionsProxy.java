@@ -40,7 +40,7 @@ public final class ReportTransactionsProxy implements Iterable<ReportTransaction
     public ReportTransactionsProxy getAlle()
     {
         return new ReportTransactionsProxy(provider, new ReportTransactionQuery(query.accountId(), null, null,
-            query.limit()));
+            query.limit(), query.categoryIds(), query.includeSubcategories()));
     }
 
     public ReportTransactionsProxy letzteTage(int days)
@@ -66,6 +66,11 @@ public final class ReportTransactionsProxy implements Iterable<ReportTransaction
     public ReportTransactionsProxy limit(int limit)
     {
         return new ReportTransactionsProxy(provider, query.withLimit(limit));
+    }
+
+    public ReportTransactionsProxy kategorien(List<String> categoryIds, boolean includeSubcategories)
+    {
+        return new ReportTransactionsProxy(provider, query.withCategoryFilter(categoryIds, includeSubcategories));
     }
 
     public int size()

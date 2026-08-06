@@ -38,9 +38,23 @@ public final class HibiscusReportTransactionProvider implements ReportTransactio
         int limit = query.limit() == null ? Integer.MAX_VALUE : query.limit();
         while (transactions.hasNext() && result.size() < limit)
         {
-            result.add(toReportTransaction((Umsatz) transactions.next()));
+            ReportTransaction transaction = toReportTransaction((Umsatz) transactions.next());
+            if (matchesCategory(transaction, query))
+                result.add(transaction);
         }
         return List.copyOf(result);
+    }
+
+    private static boolean matchesCategory(ReportTransaction transaction, ReportTransactionQuery query)
+    {
+        if (query.categoryIds().isEmpty())
+            return true;
+        List<CategoryInfo> path = transaction.getKategoriePfad();
+        if (path.isEmpty())
+            return false;
+        if (query.includeSubcategories())
+            return path.stream().anyMatch(category -> query.categoryIds().contains(category.id()));
+        return query.categoryIds().contains(path.get(path.size() - 1).id());
     }
 
     private static ReportTransaction toReportTransaction(Umsatz transaction) throws RemoteException

@@ -14,6 +14,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import de.open4me.hibiscus.reports.api.ReportTemplateContext;
 import de.open4me.hibiscus.reports.data.ReportAccountProvider;
+import de.open4me.hibiscus.reports.data.ReportCategoryProvider;
 import de.open4me.hibiscus.reports.data.ReportTemplateContextFactory;
 import de.open4me.hibiscus.reports.data.ReportTransactionProvider;
 import de.open4me.hibiscus.reports.data.ReportTransactionQuery;
@@ -39,10 +40,13 @@ public final class McpJsonRpcHandlerTests
         {
             initializes();
             listsTools();
+            listsToolSchemasWithMachineReadableHints();
             listsTransferSchemaTitles();
             listsAccounts();
+            listsCategories();
             syncsSelectedAccounts();
             listsTransactionsWithFilters();
+            listsTransactionsWithCategoryFilter();
             rendersExtensionObjects();
             listsProviderTools();
             callsProviderTools();
@@ -75,8 +79,40 @@ public final class McpJsonRpcHandlerTests
         check(names.contains("hibiscus_template_render"), "template render tool");
         check(names.contains("hibiscus_accounts_list"), "accounts tool");
         check(names.contains("hibiscus_accounts_sync"), "accounts sync tool");
+        check(names.contains("hibiscus_categories_list"), "categories tool");
         check(names.contains("hibiscus_sepa_transfer_create"), "sepa transfer create tool");
         check(!names.contains("reports_read"), "no report file tool");
+    }
+
+    private static void listsToolSchemasWithMachineReadableHints() throws Exception
+    {
+        JsonNode tools = request("{\"jsonrpc\":\"2.0\",\"id\":14,\"method\":\"tools/list\"}")
+            .path("result").path("tools");
+        JsonNode accounts = schemaProperties(tools, "hibiscus_accounts_list");
+        checkEquals("active", accounts.path("scope").path("enum").get(0).asText(), "accounts scope active");
+        checkEquals("all", accounts.path("scope").path("enum").get(1).asText(), "accounts scope all");
+
+        JsonNode transactions = schemaProperties(tools, "hibiscus_transactions_list");
+        checkEquals("Kategorie-ID", transactions.path("categoryId").path("title").asText(),
+            "transaction category title");
+        check(transactions.path("includeSubcategories").path("description").asText().contains("Unterkategorien"),
+            "transaction include subcategories description");
+        checkEquals("date", transactions.path("from").path("format").asText(), "transaction from date format");
+        check(transactions.path("from").path("description").asText().contains("YYYY-MM-DD"),
+            "transaction from date description");
+        checkEquals("date", transactions.path("to").path("format").asText(), "transaction to date format");
+        check(transactions.path("all").path("description").asText().contains("90 Tage"),
+            "transaction all description");
+
+        JsonNode transfer = schemaProperties(tools, "hibiscus_sepa_transfer_create");
+        checkEquals("date", transfer.path("executionDate").path("format").asText(),
+            "transfer execution date format");
+        check(transfer.path("amount").path("description").asText().contains("Dezimalkomma"),
+            "transfer amount description");
+
+        JsonNode categories = schemaProperties(tools, "hibiscus_categories_list");
+        check(categories.path("includeSkipped").path("description").asText().contains("Standard ist true"),
+            "categories include skipped description");
     }
 
     private static void listsTransferSchemaTitles() throws Exception
@@ -112,6 +148,26 @@ public final class McpJsonRpcHandlerTests
         checkEquals("Archivkonto", accounts.get(2).path("name").asText(), "all accounts include archive");
         check(!accounts.get(2).path("aktiv").asBoolean(), "active flag");
         check(accounts.get(2).path("offline").asBoolean(), "offline flag");
+    }
+
+    private static void listsCategories() throws Exception
+    {
+        JsonNode response = request("""
+            {"jsonrpc":"2.0","id":15,"method":"tools/call","params":{
+              "name":"hibiscus_categories_list",
+              "arguments":{"includeSkipped":false}
+            }}
+            """);
+        JsonNode categories = response.path("result").path("structuredContent").path("categories");
+        checkEquals(2, categories.size(), "category count");
+        JsonNode child = categories.get(1);
+        checkEquals("14", child.path("id").asText(), "category id");
+        checkEquals("13", child.path("parentId").asText(), "category parent id");
+        checkEquals("Food > Restaurant", child.path("path").asText(), "category path");
+        checkEquals("13", child.path("pathIds").get(0).asText(), "category path root id");
+        checkEquals("14", child.path("pathIds").get(1).asText(), "category path leaf id");
+        checkEquals("hibiscus_transactions_list", child.path("transactionsTool").asText(),
+            "category transactions tool");
     }
 
     private static void syncsSelectedAccounts() throws Exception
@@ -151,6 +207,23 @@ public final class McpJsonRpcHandlerTests
         checkEquals(LocalDate.of(2026, 1, 1), query.from(), "query from");
         checkEquals(LocalDate.of(2026, 1, 31), query.to(), "query to");
         checkEquals(Integer.valueOf(1), query.limit(), "query limit");
+    }
+
+    private static void listsTransactionsWithCategoryFilter() throws Exception
+    {
+        FakeTransactionProvider transactions = new FakeTransactionProvider();
+        McpJsonRpcHandler handler = handler(transactions);
+        JsonNode response = MAPPER.readTree(handler.handle("""
+            {"jsonrpc":"2.0","id":16,"method":"tools/call","params":{
+              "name":"hibiscus_transactions_list",
+              "arguments":{"categoryId":"13","includeSubcategories":true}
+            }}
+            """));
+        checkEquals(2, response.path("result").path("structuredContent").path("transactions").size(),
+            "category transaction count");
+        ReportTransactionQuery query = transactions.queries.get(0);
+        checkEquals(List.of("13"), query.categoryIds(), "query category ids");
+        check(query.includeSubcategories(), "query include subcategories");
     }
 
     private static void rendersExtensionObjects() throws Exception
@@ -326,10 +399,20 @@ public final class McpJsonRpcHandlerTests
         return MAPPER.readTree(handler(new FakeTransactionProvider()).handle(request));
     }
 
+    private static JsonNode schemaProperties(JsonNode tools, String name)
+    {
+        for (JsonNode tool : tools)
+        {
+            if (name.equals(tool.path("name").asText()))
+                return tool.path("inputSchema").path("properties");
+        }
+        throw new AssertionError("missing tool schema " + name);
+    }
+
     private static McpJsonRpcHandler handler(ReportTransactionProvider transactions)
     {
         return new McpJsonRpcHandler(new ReportTemplateContextFactory(new FakeAccountProvider(transactions),
-            transactions), transactions);
+            transactions), transactions, new FakeCategoryProvider());
     }
 
     private static McpJsonRpcHandler handler(ReportTransactionProvider transactions,
@@ -337,7 +420,7 @@ public final class McpJsonRpcHandlerTests
                                              boolean writeEnabled)
     {
         return new McpJsonRpcHandler(new ReportTemplateContextFactory(new FakeAccountProvider(transactions),
-            transactions), transactions, transferDraftWriter, () -> writeEnabled);
+            transactions), transactions, new FakeCategoryProvider(), transferDraftWriter, () -> writeEnabled);
     }
 
     private static McpJsonRpcHandler handler(ReportTransactionProvider transactions,
@@ -346,7 +429,8 @@ public final class McpJsonRpcHandlerTests
                                              boolean writeEnabled)
     {
         return new McpJsonRpcHandler(new ReportTemplateContextFactory(new FakeAccountProvider(transactions),
-            transactions), transactions, transferDraftWriter, accountSynchronizer, () -> writeEnabled);
+            transactions), transactions, new FakeCategoryProvider(), transferDraftWriter, accountSynchronizer,
+            () -> writeEnabled);
     }
 
     public record ExternalObject(String name)
@@ -431,10 +515,46 @@ public final class McpJsonRpcHandlerTests
             ReportAccount account = new ReportAccount(query.accountId() == null ? "active" : query.accountId(),
                 123.45d, 120.00d, LocalDateTime.of(2026, 7, 8, 14, 15, 16), "Aktives Girokonto",
                 "12345678", "DE001234", "Privat", false, null);
-            return List.of(new ReportTransaction(LocalDate.of(2026, 1, 8), LocalDate.of(2026, 1, 8),
-                12.34d, 123.45d, "Testumsatz", "", List.of("Testumsatz"), "Gegenkonto", "111",
-                "222", "Ueberweisung", "Food", List.of(new CategoryInfo("13", "Food", false, 0x123456)),
-                false, account));
+            List<ReportTransaction> result = List.of(
+                transaction(account, "13", "Food", List.of(new CategoryInfo("13", "Food", false, 0x123456))),
+                transaction(account, "14", "Restaurant", List.of(new CategoryInfo("13", "Food", false, 0x123456),
+                    new CategoryInfo("14", "Restaurant", false, null))),
+                transaction(account, "20", "Auto", List.of(new CategoryInfo("20", "Auto", false, null))));
+            result = result.stream().filter(transaction -> matchesCategory(transaction, query)).toList();
+            if (query.limit() != null)
+                result = result.stream().limit(query.limit()).toList();
+            return result;
+        }
+
+        private static ReportTransaction transaction(ReportAccount account, String id, String name,
+                                                     List<CategoryInfo> path)
+        {
+            return new ReportTransaction(LocalDate.of(2026, 1, 8), LocalDate.of(2026, 1, 8),
+                12.34d, 123.45d, "Testumsatz " + id, "", List.of("Testumsatz " + id), "Gegenkonto", "111",
+                "222", "Ueberweisung", name, path, false, account);
+        }
+
+        private static boolean matchesCategory(ReportTransaction transaction, ReportTransactionQuery query)
+        {
+            if (query.categoryIds().isEmpty())
+                return true;
+            List<CategoryInfo> path = transaction.getKategoriePfad();
+            if (query.includeSubcategories())
+                return path.stream().anyMatch(category -> query.categoryIds().contains(category.id()));
+            return !path.isEmpty() && query.categoryIds().contains(path.get(path.size() - 1).id());
+        }
+    }
+
+    private static final class FakeCategoryProvider implements ReportCategoryProvider
+    {
+        @Override
+        public List<List<CategoryInfo>> loadCategoryPaths()
+        {
+            return List.of(
+                List.of(new CategoryInfo("13", "Food", false, 0x123456)),
+                List.of(new CategoryInfo("13", "Food", false, 0x123456),
+                    new CategoryInfo("14", "Restaurant", false, null)),
+                List.of(new CategoryInfo("99", "Ausgeschlossen", true, null)));
         }
     }
 
