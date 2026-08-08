@@ -594,6 +594,17 @@ function text(value) {
   return value == null || value === "" ? "-" : String(value);
 }
 
+function joinList(values) {
+  if (values == null || values.isEmpty()) {
+    return "-";
+  }
+  var result = [];
+  for (var i = 0; i < values.size(); i++) {
+    result.push(String(values.get(i)));
+  }
+  return result.join(", ");
+}
+
 var konto = umsatz.getKonto();
 
 var details =
@@ -609,7 +620,7 @@ var details =
   "BLZ/BIC: " + text(umsatz.getGegenkontoBlz()) + "\n\n" +
   "Zweck: " + text(umsatz.getZweck()) + "\n" +
   "Zweck 2: " + text(umsatz.getZweck2()) + "\n" +
-  "Weitere Verwendungszwecke: " + umsatz.getVerwendungszwecke().join(", ");
+  "Weitere Verwendungszwecke: " + joinList(umsatz.getVerwendungszwecke());
 
 dialoge.info("Neuer Umsatz", details);
 ```
