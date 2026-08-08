@@ -4,6 +4,8 @@
 eigene HTML-Reports, lokale JavaScript-Automatisierungen, Duplikats-Erkennung
 und einen optionalen lokalen MCP-Server.
 
+![](doc/functions.jpg)
+
 ## Funktionen und Dokumentation
 
 - **Auswertungen und Reports**: Geldfluss, Monatsübersicht, Saldo nach
