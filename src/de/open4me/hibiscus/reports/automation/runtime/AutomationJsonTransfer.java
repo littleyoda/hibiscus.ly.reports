@@ -16,6 +16,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 
 import de.open4me.hibiscus.reports.automation.model.Automation;
 import de.open4me.hibiscus.reports.automation.model.AutomationTrigger;
+import de.open4me.hibiscus.reports.automation.model.AutomationTriggerTypes;
 import de.open4me.hibiscus.reports.automation.model.MissedTriggerPolicy;
 import de.open4me.hibiscus.reports.automation.model.RunMode;
 import de.open4me.hibiscus.reports.automation.sql.AutomationRepository;
@@ -64,12 +65,16 @@ public final class AutomationJsonTransfer
 
         for (JsonNode triggerNode : root.path("triggers"))
         {
+            String type = text(triggerNode, "type");
+            if (type.isBlank())
+                type = AutomationTriggerTypes.CRON;
             String expression = text(triggerNode, "schedule");
-            LocalDateTime nextRun = expression.isBlank() ? null : schedule.next(expression, LocalDateTime.now());
+            LocalDateTime nextRun = AutomationTriggerTypes.CRON.equals(type) && !expression.isBlank()
+                ? schedule.next(expression, LocalDateTime.now()) : null;
             repository.saveTrigger(new AutomationTrigger(null, saved.id(),
                 text(triggerNode, "name"),
                 bool(triggerNode, "active", false),
-                text(triggerNode, "type"),
+                type,
                 expression,
                 nextRun,
                 null));

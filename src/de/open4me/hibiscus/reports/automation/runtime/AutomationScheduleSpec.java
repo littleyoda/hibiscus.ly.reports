@@ -146,7 +146,7 @@ public final class AutomationScheduleSpec
     {
         return switch (type)
         {
-            case NONE -> "Kein Zeitplan";
+            case NONE -> "Kein Auslöser";
             case DAILY -> "Taeglich um " + time();
             case WEEKLY -> "Woechentlich " + weekdayDescription() + " um " + time();
             case MONTHLY -> (lastMonthDay ? "Monatlich am letzten Tag" : "Monatlich am " + monthDay + ".")

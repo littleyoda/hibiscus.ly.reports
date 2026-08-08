@@ -31,9 +31,15 @@ public final class AutomationDispatcher
     public void dispatch(Automation automation, AutomationTrigger trigger, String source, boolean testRun,
                          boolean interactive, Runnable completion) throws Exception
     {
+        dispatch(automation, trigger, source, testRun, interactive, completion, Map.of());
+    }
+
+    public void dispatch(Automation automation, AutomationTrigger trigger, String source, boolean testRun,
+                         boolean interactive, Runnable completion, Map<String, Object> variables) throws Exception
+    {
         if (automation.mode() == RunMode.PARALLEL || testRun)
         {
-            runner.submit(automation, trigger, source, testRun, interactive, completion);
+            runner.submit(automation, trigger, source, testRun, interactive, completion, variables);
             return;
         }
 
@@ -50,12 +56,13 @@ public final class AutomationDispatcher
                     completion.run();
                 return;
             }
-            runner.submit(automation, trigger, source, testRun, interactive, completion);
+            runner.submit(automation, trigger, source, testRun, interactive, completion, variables);
             return;
         }
 
         Queue<Request> queue = queued.computeIfAbsent(automation.id(), key -> new ConcurrentLinkedQueue<>());
-        queue.add(new Request(automation, trigger, source, testRun, interactive, completion));
+        queue.add(new Request(automation, trigger, source, testRun, interactive, completion,
+            variables == null ? Map.of() : Map.copyOf(variables)));
         drain(automation.id());
     }
 
@@ -80,11 +87,11 @@ public final class AutomationDispatcher
                     }
                     if (request.completion != null)
                         request.completion.run();
-                });
+                }, request.variables);
     }
 
     private record Request(Automation automation, AutomationTrigger trigger, String source, boolean testRun,
-                           boolean interactive, Runnable completion)
+                           boolean interactive, Runnable completion, Map<String, Object> variables)
     {
     }
 }

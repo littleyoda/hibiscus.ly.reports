@@ -57,14 +57,14 @@ public final class HibiscusReportTransactionProvider implements ReportTransactio
         return query.categoryIds().contains(path.get(path.size() - 1).id());
     }
 
-    private static ReportTransaction toReportTransaction(Umsatz transaction) throws RemoteException
+    public static ReportTransaction toReportTransaction(Umsatz transaction) throws RemoteException
     {
         UmsatzTyp category = transaction.getUmsatzTyp();
         Konto account = transaction.getKonto();
         List<CategoryInfo> categoryPath = categoryPath(category);
         String categoryName = categoryPath.isEmpty() ? "" : categoryPath.get(categoryPath.size() - 1).name();
 
-        return new ReportTransaction(toLocalDate(transaction.getDatum()), toLocalDate(transaction.getValuta()),
+        return new ReportTransaction(transaction.getID(), toLocalDate(transaction.getDatum()), toLocalDate(transaction.getValuta()),
             transaction.getBetrag(),
             transaction.getSaldo(), transaction.getZweck(), transaction.getZweck2(),
             list(transaction.getWeitereVerwendungszwecke()), transaction.getGegenkontoName(),

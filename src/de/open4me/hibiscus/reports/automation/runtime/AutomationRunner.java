@@ -45,12 +45,18 @@ public final class AutomationRunner
     public void submit(Automation automation, AutomationTrigger trigger, String source, boolean testRun,
                        boolean interactive, Runnable completion) throws Exception
     {
+        submit(automation, trigger, source, testRun, interactive, completion, Map.of());
+    }
+
+    public void submit(Automation automation, AutomationTrigger trigger, String source, boolean testRun,
+                       boolean interactive, Runnable completion, Map<String, Object> variables) throws Exception
+    {
         AutomationRun run = repository.createRun(automation.id(), trigger == null ? null : trigger.id(), source,
             testRun);
         executor.execute(() -> {
             try
             {
-                run(automation, trigger, run);
+                run(automation, trigger, run, variables == null ? Map.of() : Map.copyOf(variables));
             }
             finally
             {
@@ -60,7 +66,8 @@ public final class AutomationRunner
         });
     }
 
-    private void run(Automation automation, AutomationTrigger trigger, AutomationRun run)
+    private void run(Automation automation, AutomationTrigger trigger, AutomationRun run,
+                     Map<String, Object> variables)
     {
         try
         {
@@ -93,6 +100,8 @@ public final class AutomationRunner
             engine.put("log", log);
             engine.put("kontext", context);
             engine.put("automation", context);
+            for (Map.Entry<String, Object> entry : variables.entrySet())
+                engine.put(entry.getKey(), entry.getValue());
 
             evalScript(engine, automation.script());
             repository.updateRunStatus(run.id(), run.testRun() ? RunStatus.TESTLAUF : RunStatus.ERFOLGREICH,

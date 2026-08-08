@@ -14,6 +14,7 @@ import de.open4me.hibiscus.reports.automation.model.AutomationDecision;
 import de.open4me.hibiscus.reports.automation.model.AutomationLogEntry;
 import de.open4me.hibiscus.reports.automation.model.AutomationRun;
 import de.open4me.hibiscus.reports.automation.model.AutomationTrigger;
+import de.open4me.hibiscus.reports.automation.model.AutomationTriggerTypes;
 import de.open4me.hibiscus.reports.automation.model.MissedTriggerPolicy;
 import de.open4me.hibiscus.reports.automation.model.RunMode;
 import de.open4me.hibiscus.reports.automation.model.RunStatus;
@@ -129,6 +130,13 @@ public final class AutomationRepository
                 deleteByAutomation(connection, "automation_decision", id);
                 deleteByAutomation(connection, "automation_run_log", id);
                 deleteByAutomation(connection, "automation_run", id);
+                try (PreparedStatement statement = connection.prepareStatement(
+                    "delete from automation_trigger_event where trigger_id in "
+                        + "(select id from automation_trigger where automation_id = ?)"))
+                {
+                    statement.setString(1, id);
+                    statement.executeUpdate();
+                }
                 deleteByAutomation(connection, "automation_trigger", id);
                 try (PreparedStatement statement = connection.prepareStatement(
                     "delete from automation_automation where id = ?"))
@@ -181,10 +189,29 @@ public final class AutomationRepository
     {
         try (Connection connection = connectionProvider.getConnection();
              PreparedStatement statement = connection.prepareStatement(
-                 "select * from automation_trigger where active = ? and next_run is not null and next_run <= ? order by next_run, id"))
+                 "select * from automation_trigger where active = ? and trigger_type = ? and next_run is not null and next_run <= ? order by next_run, id"))
         {
             statement.setBoolean(1, true);
-            statement.setTimestamp(2, Timestamp.valueOf(now));
+            statement.setString(2, de.open4me.hibiscus.reports.automation.model.AutomationTriggerTypes.CRON);
+            statement.setTimestamp(3, Timestamp.valueOf(now));
+            List<AutomationTrigger> result = new ArrayList<>();
+            try (ResultSet rs = statement.executeQuery())
+            {
+                while (rs.next())
+                    result.add(trigger(rs));
+            }
+            return result;
+        }
+    }
+
+    public List<AutomationTrigger> listActiveTriggersByType(String type) throws Exception
+    {
+        try (Connection connection = connectionProvider.getConnection();
+             PreparedStatement statement = connection.prepareStatement(
+                 "select * from automation_trigger where active = ? and trigger_type = ? order by name, id"))
+        {
+            statement.setBoolean(1, true);
+            statement.setString(2, type);
             List<AutomationTrigger> result = new ArrayList<>();
             try (ResultSet rs = statement.executeQuery())
             {
@@ -197,10 +224,38 @@ public final class AutomationRepository
 
     public AutomationTrigger saveTrigger(AutomationTrigger trigger) throws Exception
     {
+        boolean seedExistingTransactions = shouldSeedExistingTransactions(trigger);
         if (trigger.id() == null || trigger.id().isBlank())
-            return insertTrigger(trigger);
+        {
+            AutomationTrigger saved = insertTrigger(trigger);
+            if (seedExistingTransactions)
+                seedExistingTransactionEvents(saved.id());
+            return saved;
+        }
         updateTrigger(trigger);
+        if (seedExistingTransactions)
+            seedExistingTransactionEvents(trigger.id());
         return trigger;
+    }
+
+    private boolean shouldSeedExistingTransactions(AutomationTrigger trigger) throws Exception
+    {
+        if (!trigger.active() || !AutomationTriggerTypes.TRANSACTION_NEW.equals(trigger.type()))
+            return false;
+        if (trigger.id() == null || trigger.id().isBlank())
+            return true;
+        try (Connection connection = connectionProvider.getConnection();
+             PreparedStatement statement = connection.prepareStatement(
+                 "select id from automation_trigger where id = ? and active = ? and trigger_type = ?"))
+        {
+            statement.setString(1, trigger.id());
+            statement.setBoolean(2, true);
+            statement.setString(3, AutomationTriggerTypes.TRANSACTION_NEW);
+            try (ResultSet rs = statement.executeQuery())
+            {
+                return !rs.next();
+            }
+        }
     }
 
     private AutomationTrigger insertTrigger(AutomationTrigger trigger) throws Exception
@@ -550,6 +605,107 @@ public final class AutomationRepository
                 continue;
             deleteRun(run.id());
         }
+    }
+
+    public boolean recordTriggerEvent(String triggerId, String eventType, String eventKey) throws Exception
+    {
+        if (triggerId == null || triggerId.isBlank() || eventType == null || eventType.isBlank()
+            || eventKey == null || eventKey.isBlank())
+            return false;
+        try (Connection connection = connectionProvider.getConnection())
+        {
+            if (triggerEventExists(connection, triggerId, eventType, eventKey))
+                return false;
+            try (PreparedStatement statement = connection.prepareStatement(
+                "insert into automation_trigger_event (trigger_id, event_type, event_key, created_at) values (?, ?, ?, ?)"))
+            {
+                statement.setString(1, triggerId);
+                statement.setString(2, eventType);
+                statement.setString(3, eventKey);
+                statement.setTimestamp(4, Timestamp.valueOf(LocalDateTime.now()));
+                statement.executeUpdate();
+                return true;
+            }
+            catch (java.sql.SQLException e)
+            {
+                if (isUniqueViolation(e))
+                    return false;
+                throw e;
+            }
+        }
+    }
+
+    private void seedExistingTransactionEvents(String triggerId) throws Exception
+    {
+        try (Connection connection = connectionProvider.getConnection())
+        {
+            boolean autoCommit = connection.getAutoCommit();
+            connection.setAutoCommit(false);
+            try
+            {
+                List<String> transactionIds = new ArrayList<>();
+                try (PreparedStatement statement = connection.prepareStatement("select id from umsatz");
+                     ResultSet rs = statement.executeQuery())
+                {
+                    while (rs.next())
+                        transactionIds.add(rs.getString(1));
+                }
+                Timestamp now = Timestamp.valueOf(LocalDateTime.now());
+                try (PreparedStatement statement = connection.prepareStatement(
+                    "insert into automation_trigger_event (trigger_id, event_type, event_key, created_at) values (?, ?, ?, ?)"))
+                {
+                    for (String transactionId : transactionIds)
+                    {
+                        if (transactionEventExists(connection, triggerId, transactionId))
+                            continue;
+                        statement.setString(1, triggerId);
+                        statement.setString(2, AutomationTriggerTypes.TRANSACTION_NEW);
+                        statement.setString(3, transactionId);
+                        statement.setTimestamp(4, now);
+                        statement.addBatch();
+                    }
+                    statement.executeBatch();
+                }
+                connection.commit();
+            }
+            catch (Exception e)
+            {
+                connection.rollback();
+                throw e;
+            }
+            finally
+            {
+                connection.setAutoCommit(autoCommit);
+            }
+        }
+    }
+
+    private static boolean transactionEventExists(Connection connection, String triggerId, String transactionId)
+        throws Exception
+    {
+        return triggerEventExists(connection, triggerId, AutomationTriggerTypes.TRANSACTION_NEW, transactionId);
+    }
+
+    private static boolean triggerEventExists(Connection connection, String triggerId, String eventType, String eventKey)
+        throws Exception
+    {
+        try (PreparedStatement statement = connection.prepareStatement(
+            "select id from automation_trigger_event where trigger_id = ? and event_type = ? and event_key = ?"))
+        {
+            statement.setString(1, triggerId);
+            statement.setString(2, eventType);
+            statement.setString(3, eventKey);
+            try (ResultSet rs = statement.executeQuery())
+            {
+                return rs.next();
+            }
+        }
+    }
+
+    private static boolean isUniqueViolation(java.sql.SQLException e)
+    {
+        String state = e.getSQLState();
+        return "23505".equals(state) || "23000".equals(state) || "23001".equals(state);
     }
 
     private void deleteRun(String runId) throws Exception

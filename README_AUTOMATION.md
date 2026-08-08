@@ -2,9 +2,10 @@
 
 Die Automatisierung erweitert `hibiscus.ly.reports` um lokal ausgeführte
 JavaScript-Automationen für Hibiscus-Daten. Automationen können manuell,
-als Testlauf oder zeitgesteuert gestartet werden. Sie verwenden dieselben
-fachlichen Datenobjekte wie die dynamischen Reports und können kontrolliert
-SEPA-Zahlungsentwürfe vorbereiten.
+als Testlauf, zeitgesteuert, nach einer Synchronisierung oder bei neuen
+Umsätzen gestartet werden. Sie verwenden dieselben fachlichen Datenobjekte wie
+die dynamischen Reports und können kontrolliert SEPA-Zahlungsentwürfe
+vorbereiten.
 
 Die Report-Template-Objekte sind in [README_REPORTS.md](README_REPORTS.md)
 dokumentiert. Der optionale MCP-Zugriff auf ähnliche Daten und Funktionen ist
@@ -21,7 +22,8 @@ Der aktuelle Implementierungsstand enthält:
   Entscheidungen
 - manuelle Ausführung
 - Testlauf ohne schreibende Nebenwirkungen
-- zeitgesteuerte Trigger per Cron-Ausdruck oder Preset
+- Auslöser per Cron-Ausdruck/Preset, nach erfolgreicher Synchronisierung oder
+  bei neuem Umsatz
 - fester Laufmodus `single`
 - Nashorn JavaScript-Engine mit eigener Engine pro Lauf
 - gesperrten direkten Java-Klassenzugriff aus Scripts
@@ -53,8 +55,8 @@ Die Ansicht bietet aktuell:
 - Tab `Verlauf` mit Aktualisieren, Laufstatus und Lauf-Logs
 
 Pro Automation werden Name, Beschreibung, Verhalten bei verpassten Triggern,
-aktive Zeitsteuerung, Zeitplan und Script bearbeitet. Die Historie ist aktuell
-fest auf 100 Einträge begrenzt.
+aktiver Auslöser, Auslöser-Typ und Script bearbeitet. Die Historie ist
+aktuell fest auf 100 Einträge begrenzt.
 
 ## Startseite
 
@@ -84,10 +86,10 @@ Eine Automation besteht aus:
 - Name
 - Beschreibung
 - Verhalten bei verpassten Triggern
-- aktive Zeitsteuerung
+- aktiver Auslöser
 - History-Limit
 - Hauptscript
-- optionalem Zeittrigger
+- optionalem Trigger
 
 Die technische Speicherung erfolgt in eigenen SQL-Tabellen mit Prefix
 `automation_`.
@@ -110,10 +112,27 @@ bereits, wird automatisch ein Import-Suffix ergänzt. Bestehende Automationen
 werden nicht überschrieben. Der nächste Lauf importierter Trigger wird aus
 dem importierten Zeitplan neu berechnet.
 
-## Zeittrigger
+## Auslöser
 
-Zeittrigger werden nur ausgewertet, wenn Jameica läuft. Das Plugin startet
-keinen externen Hintergrunddienst.
+Der Dialog `Auslöser bearbeiten` bietet aktuell drei Typen:
+
+- `Zeitplan`: startet nach Cron-Ausdruck oder Preset.
+- `Nach erfolgreicher Synchronisierung`: startet nach einer erfolgreichen
+  Hibiscus-Synchronisierung. Synchronisierungen, die aus einer Automation
+  heraus gestartet werden, lösen diesen Auslöser nicht erneut aus.
+- `Neuer Umsatz`: startet für jeden künftig neu gespeicherten Hibiscus-Umsatz
+  genau einmal. Das Script erhält den Umsatz als Variable `umsatz`.
+
+Beim Aktivieren eines `Neuer Umsatz`-Auslösers werden bereits vorhandene
+Umsatz-IDs intern als gesehen markiert. Dadurch werden bestehende Umsätze
+nicht nachträglich verarbeitet und spätere Änderungen an bestehenden Umsätzen
+lösen nicht erneut aus. Wenn ein vorgemerkter Umsatz später als gebuchter
+Umsatz mit neuer Hibiscus-ID angelegt wird, zählt er als neuer Umsatz.
+
+## Zeitplan-Auslöser
+
+Zeitplan-Auslöser werden nur ausgewertet, wenn Jameica läuft. Das Plugin
+startet keinen externen Hintergrunddienst.
 
 Das Feld `Cron/Preset` akzeptiert:
 
@@ -160,9 +179,9 @@ Das Datenmodell kennt die Optionen:
 - `nachholen`
 - `nachfragen`
 
-Die aktuelle Scheduler-Implementierung führt fällige aktive Trigger aus,
-während Jameica läuft. Beim Jameica-Start prüft das Plugin verpasste aktive
-Zeittrigger vor dem Start des periodischen Schedulers:
+Die aktuelle Scheduler-Implementierung führt fällige aktive Zeitplan-Auslöser
+aus, während Jameica läuft. Beim Jameica-Start prüft das Plugin verpasste
+aktive Zeitplan-Auslöser vor dem Start des periodischen Schedulers:
 
 - `ignorieren`: kein Lauf wird gestartet, der nächste zukünftige Lauf wird
   berechnet.
@@ -278,6 +297,29 @@ Verfügbar sind:
 - `umsaetze.limit(n)`
 - `umsaetze.letzteTage(n)`
 - `umsaetze.zeitraum(von, bis)`
+
+Wichtige Umsatzfelder:
+
+- `umsatz.id`
+- `umsatz.datum`
+- `umsatz.valuta`
+- `umsatz.betrag`
+- `umsatz.saldo`
+- `umsatz.zweck`
+- `umsatz.zweck2`
+- `umsatz.verwendungszwecke`
+- `umsatz.gegenkontoName`
+- `umsatz.gegenkontoNummer`
+- `umsatz.gegenkontoBlz`
+- `umsatz.art`
+- `umsatz.kategorie`
+- `umsatz.kategoriePfad`
+- `umsatz.vorgemerkt`
+- `umsatz.konto`
+
+Bei einem Lauf mit Auslöser `Neuer Umsatz` ist zusätzlich die Variable
+`umsatz` gesetzt. Sie enthält genau den neuen Umsatz, der den Lauf ausgelöst
+hat.
 
 ### `log`
 
@@ -543,6 +585,35 @@ zahlungen.entwurf({
 });
 ```
 
+### Dialog bei neuem Umsatz
+
+Auslöser: `Neuer Umsatz`
+
+```javascript
+function text(value) {
+  return value == null || value === "" ? "-" : String(value);
+}
+
+var konto = umsatz.getKonto();
+
+var details =
+  "Datum: " + text(umsatz.getDatum()) + "\n" +
+  "Valuta: " + text(umsatz.getValuta()) + "\n" +
+  "Betrag: " + umsatz.getBetrag().toFixed(2) + " EUR\n" +
+  "Saldo: " + umsatz.getSaldo().toFixed(2) + " EUR\n" +
+  "Konto: " + (konto == null ? "-" : text(konto.getName())) + "\n" +
+  "Kategorie: " + text(umsatz.getKategorie()) + "\n" +
+  "Vorgemerkt: " + (umsatz.isVorgemerkt() ? "ja" : "nein") + "\n\n" +
+  "Gegenkonto: " + text(umsatz.getGegenkontoName()) + "\n" +
+  "IBAN/Kontonummer: " + text(umsatz.getGegenkontoNummer()) + "\n" +
+  "BLZ/BIC: " + text(umsatz.getGegenkontoBlz()) + "\n\n" +
+  "Zweck: " + text(umsatz.getZweck()) + "\n" +
+  "Zweck 2: " + text(umsatz.getZweck2()) + "\n" +
+  "Weitere Verwendungszwecke: " + umsatz.getVerwendungszwecke().join(", ");
+
+dialoge.info("Neuer Umsatz", details);
+```
+
 ## Datenhaltung
 
 Beim Pluginstart wird die Automation-Datenbankstruktur geprüft und bei Bedarf
@@ -553,6 +624,7 @@ Tabellen:
 - `automation_cfg`
 - `automation_automation`
 - `automation_trigger`
+- `automation_trigger_event`
 - `automation_run`
 - `automation_run_log`
 - `automation_decision`

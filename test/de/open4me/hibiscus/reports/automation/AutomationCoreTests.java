@@ -42,6 +42,7 @@ public final class AutomationCoreTests
             describesExpertCronExpressions();
             createsScheduleExpressionsFromPresets();
             detectsSchedulePresetsFromExpressions();
+            describesMissingTriggerAsNoTrigger();
             detectsMissedStartupActions();
             delaysMissedStartupHandling();
             blocksDirectJavaClassAccess();
@@ -163,6 +164,12 @@ public final class AutomationCoreTests
             "minute interval type");
         checkEquals(Type.EXPERT, AutomationScheduleSpec.fromExpression("0 30 7 ? * MON-FRI").type(),
             "unknown expression uses expert mode");
+    }
+
+    private static void describesMissingTriggerAsNoTrigger()
+    {
+        checkEquals("Kein Auslöser", AutomationScheduleSpec.fromExpression("").describe(),
+            "empty schedule description");
     }
 
     private static void detectsMissedStartupActions()

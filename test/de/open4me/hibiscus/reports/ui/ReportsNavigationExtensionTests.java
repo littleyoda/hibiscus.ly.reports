@@ -12,6 +12,7 @@ import de.open4me.hibiscus.reports.automation.model.AutomationRun;
 import de.open4me.hibiscus.reports.automation.model.MissedTriggerPolicy;
 import de.open4me.hibiscus.reports.automation.model.RunMode;
 import de.open4me.hibiscus.reports.automation.model.RunStatus;
+import de.open4me.hibiscus.reports.automation.model.AutomationTriggerTypes;
 import de.open4me.hibiscus.reports.model.DynamicReport;
 import de.willuhn.jameica.gui.Item;
 import de.willuhn.jameica.gui.NavigationItem;
@@ -124,6 +125,9 @@ public final class ReportsNavigationExtensionTests
             "0 30 7 * * ?", "log.info('x');").differsFrom(saved), "schedule active change is dirty");
         check(new AutomationEditorState("Name", "Beschreibung", "nachholen", true,
             "0 0 8 * * ?", "log.info('x');").differsFrom(saved), "schedule change is dirty");
+        check(new AutomationEditorState("Name", "Beschreibung", "nachholen", true,
+            AutomationTriggerTypes.SYNC_AFTER, "", "log.info('x');").differsFrom(saved),
+            "trigger type change is dirty");
         check(new AutomationEditorState("Name", "Beschreibung", "nachholen", true,
             "0 30 7 * * ?", "log.info('y');").differsFrom(saved), "script change is dirty");
     }

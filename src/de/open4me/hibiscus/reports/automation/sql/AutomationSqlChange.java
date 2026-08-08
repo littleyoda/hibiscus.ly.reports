@@ -64,6 +64,16 @@ public final class AutomationSqlChange
             changes.add(new AutomationSqlChange(2, List.of(
                 "alter table automation_run drop column if exists condition_override")));
         }
+        if (currentVersion < 3)
+        {
+            String id = dialect.idColumn();
+            String ts = dialect.timestamp();
+            changes.add(new AutomationSqlChange(3, List.of(
+                "create table automation_trigger_event (id " + id
+                    + ", trigger_id int not null, event_type varchar(40) not null, event_key varchar(200) not null, created_at "
+                    + ts + ", primary key (id))",
+                "create unique index idx_automation_trigger_event_unique on automation_trigger_event(trigger_id, event_type, event_key)")));
+        }
         return changes;
     }
 }

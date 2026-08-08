@@ -450,7 +450,7 @@ public final class DynamicReportTests
             String purpose = query.accountId() == null ? "Globaler Umsatz" : "Kontoumsatz";
             List<CategoryInfo> categoryPath = List.of(new CategoryInfo("41", "45 Lebenshaltung", false, null),
                 new CategoryInfo("13", "Food", false, 0x123456));
-            List<ReportTransaction> result = List.of(new ReportTransaction(LocalDate.of(2026, 7, 8),
+            List<ReportTransaction> result = List.of(new ReportTransaction("1", LocalDate.of(2026, 7, 8),
                 LocalDate.of(2026, 7, 8), 12.34d, 123.45d, purpose, "", List.of(), "Gegenkonto",
                 "111", "222", "Überweisung", "Food", categoryPath, false, account));
             if (query.limit() != null)

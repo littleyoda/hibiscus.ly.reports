@@ -5,6 +5,7 @@ import java.util.List;
 
 public final class ReportTransaction
 {
+    private final String id;
     private final LocalDate datum;
     private final LocalDate valuta;
     private final double betrag;
@@ -21,11 +22,12 @@ public final class ReportTransaction
     private final boolean vorgemerkt;
     private final ReportAccount konto;
 
-    public ReportTransaction(LocalDate datum, LocalDate valuta, double betrag, double saldo, String zweck,
+    public ReportTransaction(String id, LocalDate datum, LocalDate valuta, double betrag, double saldo, String zweck,
                              String zweck2, List<String> verwendungszwecke, String gegenkontoName,
                              String gegenkontoNummer, String gegenkontoBlz, String art, String kategorie,
                              List<CategoryInfo> kategoriePfad, boolean vorgemerkt, ReportAccount konto)
     {
+        this.id = text(id);
         this.datum = datum;
         this.valuta = valuta;
         this.betrag = betrag;
@@ -41,6 +43,11 @@ public final class ReportTransaction
         this.kategoriePfad = kategoriePfad == null ? List.of() : List.copyOf(kategoriePfad);
         this.vorgemerkt = vorgemerkt;
         this.konto = konto;
+    }
+
+    public String getId()
+    {
+        return id;
     }
 
     public LocalDate getDatum()

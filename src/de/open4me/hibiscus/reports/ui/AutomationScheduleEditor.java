@@ -55,8 +55,7 @@ public final class AutomationScheduleEditor extends Composite
         super(parent, style);
         setLayout(new GridLayout(1, false));
 
-        type = combo("Art", new String[] { "Kein Zeitplan", "Taeglich", "Woechentlich", "Monatlich",
-            "Intervall", "Experte" });
+        type = combo("Art", new String[] { "Taeglich", "Woechentlich", "Monatlich", "Intervall", "Experte" });
 
         timeRow = row("Uhrzeit", 4);
         hour = spinner(timeRow.content, 0, 23, 8);
@@ -106,7 +105,8 @@ public final class AutomationScheduleEditor extends Composite
 
     public void setExpression(String expression)
     {
-        setSpec(AutomationScheduleSpec.fromExpression(expression));
+        setSpec(expression == null || expression.isBlank()
+            ? AutomationScheduleSpec.daily(8, 0) : AutomationScheduleSpec.fromExpression(expression));
     }
 
     public String getExpression()
@@ -122,7 +122,7 @@ public final class AutomationScheduleEditor extends Composite
 
     private void setSpec(AutomationScheduleSpec spec)
     {
-        type.select(spec.type().ordinal());
+        type.select(selectionIndex(spec.type()));
         hour.setSelection(spec.hour());
         minute.setSelection(spec.minute());
 
@@ -144,7 +144,7 @@ public final class AutomationScheduleEditor extends Composite
 
     private AutomationScheduleSpec currentSpec()
     {
-        Type selectedType = Type.values()[Math.max(0, type.getSelectionIndex())];
+        Type selectedType = selectedType();
         return switch (selectedType)
         {
             case NONE -> AutomationScheduleSpec.none();
@@ -240,7 +240,7 @@ public final class AutomationScheduleEditor extends Composite
         if (refreshing)
             return;
         refreshing = true;
-        Type selectedType = Type.values()[Math.max(0, type.getSelectionIndex())];
+        Type selectedType = selectedType();
         try
         {
             setVisible(timeRow, selectedType == Type.DAILY || selectedType == Type.WEEKLY
@@ -291,6 +291,30 @@ public final class AutomationScheduleEditor extends Composite
         row.container.setVisible(visible);
         GridData data = (GridData) row.container.getLayoutData();
         data.exclude = !visible;
+    }
+
+    private Type selectedType()
+    {
+        return switch (Math.max(0, type.getSelectionIndex()))
+        {
+            case 1 -> Type.WEEKLY;
+            case 2 -> Type.MONTHLY;
+            case 3 -> Type.INTERVAL;
+            case 4 -> Type.EXPERT;
+            default -> Type.DAILY;
+        };
+    }
+
+    private static int selectionIndex(Type type)
+    {
+        return switch (type)
+        {
+            case WEEKLY -> 1;
+            case MONTHLY -> 2;
+            case INTERVAL -> 3;
+            case EXPERT -> 4;
+            default -> 0;
+        };
     }
 
     private static final class EditorRow

@@ -8,7 +8,7 @@ public record AutomationTrigger(String id, String automationId, String name, boo
     public AutomationTrigger
     {
         name = text(name);
-        type = text(type).isBlank() ? "cron" : text(type);
+        type = text(type).isBlank() ? AutomationTriggerTypes.CRON : text(type);
         schedule = text(schedule);
     }
 

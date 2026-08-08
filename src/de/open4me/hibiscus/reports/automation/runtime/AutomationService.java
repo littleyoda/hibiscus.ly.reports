@@ -23,6 +23,10 @@ public final class AutomationService
     private final AutomationRunner runner = new AutomationRunner(repository, runnerExecutor, dialogGate);
     private final AutomationDispatcher dispatcher = new AutomationDispatcher(repository, runner);
     private final AutomationScheduler scheduler = new AutomationScheduler(repository, dispatcher);
+    private final AutomationSyncTriggerListener syncTriggerListener =
+        new AutomationSyncTriggerListener(repository, dispatcher);
+    private final AutomationTransactionTriggerListener transactionTriggerListener =
+        new AutomationTransactionTriggerListener(repository, dispatcher);
 
     private AutomationService()
     {
@@ -44,12 +48,16 @@ public final class AutomationService
         failOpenRuntimeRunsOnStart(
             "Jameica/Hibiscus wurde neu gestartet; offener Automation-Lauf wurde als Fehler abgeschlossen.");
         dialogGate.start();
+        syncTriggerListener.start();
+        transactionTriggerListener.start();
         scheduler.start();
     }
 
     public void stop()
     {
         scheduler.stop();
+        transactionTriggerListener.stop();
+        syncTriggerListener.stop();
         dialogGate.stop();
         runnerExecutor.shutdownNow();
         failOpenRuntimeRunsOnStop(

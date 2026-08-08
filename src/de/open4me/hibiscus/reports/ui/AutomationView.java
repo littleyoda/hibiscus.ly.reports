@@ -25,6 +25,7 @@ import de.open4me.hibiscus.reports.automation.model.AutomationDecision;
 import de.open4me.hibiscus.reports.automation.model.AutomationLogEntry;
 import de.open4me.hibiscus.reports.automation.model.AutomationRun;
 import de.open4me.hibiscus.reports.automation.model.AutomationTrigger;
+import de.open4me.hibiscus.reports.automation.model.AutomationTriggerTypes;
 import de.open4me.hibiscus.reports.automation.model.MissedTriggerPolicy;
 import de.open4me.hibiscus.reports.automation.model.RunMode;
 import de.open4me.hibiscus.reports.automation.model.RunStatus;
@@ -58,6 +59,7 @@ public final class AutomationView extends AbstractView
     private Button scheduleActive;
     private Combo missed;
     private Text scheduleSummary;
+    private String triggerType = AutomationTriggerTypes.CRON;
     private String scheduleExpression = "";
     private Text script;
     private Table runsTable;
@@ -166,10 +168,10 @@ public final class AutomationView extends AbstractView
         missed.addListener(SWT.Selection, event -> markDirty());
         label(form, "");
         scheduleActive = new Button(form, SWT.CHECK);
-        scheduleActive.setText("Zeitsteuerung aktiv");
+        scheduleActive.setText("Auslöser aktiv");
         scheduleActive.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
         scheduleActive.addListener(SWT.Selection, event -> markDirty());
-        label(form, "Zeitplan");
+        label(form, "Auslöser");
         Composite scheduleRow = new Composite(form, SWT.NONE);
         scheduleRow.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
         scheduleRow.setLayout(new GridLayout(2, false));
@@ -393,7 +395,7 @@ public final class AutomationView extends AbstractView
         scheduleActive.setSelection(false);
         missed.select(Math.max(0, automation.missedTriggerPolicy().ordinal()));
         script.setText(automation.script());
-        setScheduleExpression("");
+        setTrigger("", "");
         try
         {
             if (automation.id() != null)
@@ -403,7 +405,7 @@ public final class AutomationView extends AbstractView
                 {
                     AutomationTrigger trigger = triggers.get(0);
                     scheduleActive.setSelection(trigger.active());
-                    setScheduleExpression(trigger.schedule());
+                    setTrigger(trigger.type(), trigger.schedule());
                 }
             }
         }
@@ -423,9 +425,9 @@ public final class AutomationView extends AbstractView
     {
         try
         {
-            String value = new AutomationScheduleDialog(scheduleExpression).open();
+            AutomationScheduleDialog.Result value = new AutomationScheduleDialog(triggerType, scheduleExpression).open();
             if (value != null)
-                setScheduleExpression(value);
+                setTrigger(value.type(), value.schedule());
         }
         catch (de.willuhn.jameica.system.OperationCanceledException ignored)
         {
@@ -438,9 +440,28 @@ public final class AutomationView extends AbstractView
 
     private void setScheduleExpression(String expression)
     {
+        setTrigger(AutomationTriggerTypes.CRON, expression);
+    }
+
+    private void setTrigger(String type, String expression)
+    {
         scheduleExpression = expression == null ? "" : expression.trim();
-        scheduleSummary.setText(AutomationScheduleSpec.fromExpression(scheduleExpression).describe());
+        triggerType = type == null ? "" : type;
+        if (AutomationTriggerTypes.CRON.equals(triggerType) && scheduleExpression.isBlank())
+            triggerType = "";
+        scheduleSummary.setText(triggerSummary(triggerType, scheduleExpression));
         markDirty();
+    }
+
+    private static String triggerSummary(String type, String expression)
+    {
+        if (AutomationTriggerTypes.SYNC_AFTER.equals(type))
+            return "Nach erfolgreicher Synchronisierung";
+        if (AutomationTriggerTypes.TRANSACTION_NEW.equals(type))
+            return "Neuer Umsatz";
+        if (type == null || type.isBlank() || expression == null || expression.isBlank())
+            return "Kein Auslöser";
+        return AutomationScheduleSpec.fromExpression(expression).describe();
     }
 
     private void markNameDirty()
@@ -488,6 +509,7 @@ public final class AutomationView extends AbstractView
             description == null || description.isDisposed() ? "" : description.getText(),
             missed == null || missed.isDisposed() ? "" : missed.getText(),
             scheduleActive != null && !scheduleActive.isDisposed() && scheduleActive.getSelection(),
+            triggerType,
             scheduleExpression,
             script == null || script.isDisposed() ? "" : script.getText());
     }
@@ -705,6 +727,30 @@ public final class AutomationView extends AbstractView
     {
         String expr = scheduleExpression.trim();
         List<AutomationTrigger> triggers = repository.listTriggers(automation.id());
+        boolean triggerActive = scheduleActive.getSelection();
+        if (triggerType == null || triggerType.isBlank())
+        {
+            if (!triggers.isEmpty())
+            {
+                AutomationTrigger old = triggers.get(0);
+                repository.saveTrigger(new AutomationTrigger(old.id(), automation.id(), old.name(), false,
+                    old.type(), "", null, old.lastRun()));
+            }
+            return;
+        }
+        if (AutomationTriggerTypes.SYNC_AFTER.equals(triggerType)
+            || AutomationTriggerTypes.TRANSACTION_NEW.equals(triggerType))
+        {
+            String triggerName = AutomationTriggerTypes.TRANSACTION_NEW.equals(triggerType)
+                ? "Neuer Umsatz" : "Nach Synchronisierung";
+            AutomationTrigger trigger = triggers.isEmpty()
+                ? new AutomationTrigger(null, automation.id(), triggerName, triggerActive,
+                    triggerType, "", null, null)
+                : new AutomationTrigger(triggers.get(0).id(), automation.id(), triggerName,
+                    triggerActive, triggerType, "", null, triggers.get(0).lastRun());
+            repository.saveTrigger(trigger);
+            return;
+        }
         if (expr.isBlank())
         {
             if (!triggers.isEmpty())
@@ -716,11 +762,11 @@ public final class AutomationView extends AbstractView
             return;
         }
         new AutomationSchedule().validate(expr);
-        boolean triggerActive = scheduleActive.getSelection();
         AutomationTrigger trigger = triggers.isEmpty()
-            ? new AutomationTrigger(null, automation.id(), "Zeitplan", triggerActive, "cron", expr,
+            ? new AutomationTrigger(null, automation.id(), "Zeitplan", triggerActive, AutomationTriggerTypes.CRON, expr,
                 new AutomationSchedule().next(expr, java.time.LocalDateTime.now()), null)
-            : new AutomationTrigger(triggers.get(0).id(), automation.id(), triggers.get(0).name(), triggerActive, "cron", expr,
+            : new AutomationTrigger(triggers.get(0).id(), automation.id(), "Zeitplan", triggerActive,
+                AutomationTriggerTypes.CRON, expr,
                 new AutomationSchedule().next(expr, java.time.LocalDateTime.now()), triggers.get(0).lastRun());
         repository.saveTrigger(trigger);
     }

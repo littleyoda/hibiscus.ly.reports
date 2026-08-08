@@ -97,6 +97,7 @@ public final class AutomationSync
 
         SyncWaiter waiter = new SyncWaiter();
         waiter.register();
+        AutomationSyncTriggerGuard.enterSuppressedSync();
         try
         {
             log.info("Starte Synchronisierung fuer " + summary + " (" + jobs + " Jobs).");
@@ -113,6 +114,7 @@ public final class AutomationSync
         }
         finally
         {
+            AutomationSyncTriggerGuard.leaveSuppressedSync();
             waiter.unregister();
         }
     }
@@ -312,6 +314,7 @@ public final class AutomationSync
     {
         SyncWaiter waiter = new SyncWaiter();
         waiter.register();
+        AutomationSyncTriggerGuard.enterSuppressedSync();
         try
         {
             log.info("Starte Synchronisierung fuer " + summary + " (" + jobs + " Jobs).");
@@ -324,6 +327,7 @@ public final class AutomationSync
         }
         finally
         {
+            AutomationSyncTriggerGuard.leaveSuppressedSync();
             waiter.unregister();
         }
     }

@@ -529,7 +529,7 @@ public final class McpJsonRpcHandlerTests
         private static ReportTransaction transaction(ReportAccount account, String id, String name,
                                                      List<CategoryInfo> path)
         {
-            return new ReportTransaction(LocalDate.of(2026, 1, 8), LocalDate.of(2026, 1, 8),
+            return new ReportTransaction(id, LocalDate.of(2026, 1, 8), LocalDate.of(2026, 1, 8),
                 12.34d, 123.45d, "Testumsatz " + id, "", List.of("Testumsatz " + id), "Gegenkonto", "111",
                 "222", "Ueberweisung", name, path, false, account);
         }
