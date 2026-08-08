@@ -121,7 +121,8 @@ Der Dialog `Auslöser bearbeiten` bietet aktuell drei Typen:
   Hibiscus-Synchronisierung. Synchronisierungen, die aus einer Automation
   heraus gestartet werden, lösen diesen Auslöser nicht erneut aus.
 - `Neuer Umsatz`: startet für jeden künftig neu gespeicherten Hibiscus-Umsatz
-  genau einmal. Das Script erhält den Umsatz als Variable `umsatz`.
+  genau einmal. Neue Umsätze werden gebündelt; das Script erhält die Liste als
+  Variable `neueUmsaetze`.
 
 Beim Aktivieren eines `Neuer Umsatz`-Auslösers werden bereits vorhandene
 Umsatz-IDs intern als gesehen markiert. Dadurch werden bestehende Umsätze
@@ -318,8 +319,9 @@ Wichtige Umsatzfelder:
 - `umsatz.konto`
 
 Bei einem Lauf mit Auslöser `Neuer Umsatz` ist zusätzlich die Variable
-`umsatz` gesetzt. Sie enthält genau den neuen Umsatz, der den Lauf ausgelöst
-hat.
+`neueUmsaetze` gesetzt. Sie enthält alle neuen Umsätze des Batches als
+Java-`List<ReportTransaction>`. Die Variable `umsatz` zeigt zusätzlich auf den
+ersten Eintrag aus `neueUmsaetze`, damit einfache Scripts weiter funktionieren.
 
 ### `log`
 
@@ -605,9 +607,13 @@ function joinList(values) {
   return result.join(", ");
 }
 
-var konto = umsatz.getKonto();
+var details = "Neue Umsätze: " + neueUmsaetze.size() + "\n\n";
 
-var details =
+for (var n = 0; n < neueUmsaetze.size(); n++) {
+  var umsatz = neueUmsaetze.get(n);
+  var konto = umsatz.getKonto();
+  details +=
+  "#" + (n + 1) + "\n" +
   "Datum: " + text(umsatz.getDatum()) + "\n" +
   "Valuta: " + text(umsatz.getValuta()) + "\n" +
   "Betrag: " + umsatz.getBetrag().toFixed(2) + " EUR\n" +
@@ -620,9 +626,10 @@ var details =
   "BLZ/BIC: " + text(umsatz.getGegenkontoBlz()) + "\n\n" +
   "Zweck: " + text(umsatz.getZweck()) + "\n" +
   "Zweck 2: " + text(umsatz.getZweck2()) + "\n" +
-  "Weitere Verwendungszwecke: " + joinList(umsatz.getVerwendungszwecke());
+  "Weitere Verwendungszwecke: " + joinList(umsatz.getVerwendungszwecke()) + "\n\n";
+}
 
-dialoge.info("Neuer Umsatz", details);
+dialoge.info("Neue Umsätze", details);
 ```
 
 ## Datenhaltung

@@ -66,6 +66,16 @@ public final class AutomationDispatcher
         drain(automation.id());
     }
 
+    public void dispatchQueued(Automation automation, AutomationTrigger trigger, String source, boolean testRun,
+                               boolean interactive, Runnable completion, Map<String, Object> variables)
+        throws Exception
+    {
+        Queue<Request> queue = queued.computeIfAbsent(automation.id(), key -> new ConcurrentLinkedQueue<>());
+        queue.add(new Request(automation, trigger, source, testRun, interactive, completion,
+            variables == null ? Map.of() : Map.copyOf(variables)));
+        drain(automation.id());
+    }
+
     private synchronized void drain(String automationId) throws Exception
     {
         if (repository.hasActiveRun(automationId))

@@ -74,6 +74,12 @@ public final class AutomationSqlChange
                     + ts + ", primary key (id))",
                 "create unique index idx_automation_trigger_event_unique on automation_trigger_event(trigger_id, event_type, event_key)")));
         }
+        if (currentVersion < 4)
+        {
+            changes.add(new AutomationSqlChange(4, List.of(
+                "alter table automation_trigger_event add column event_status varchar(20)",
+                "update automation_trigger_event set event_status = 'processed' where event_status is null")));
+        }
         return changes;
     }
 }

@@ -21,6 +21,10 @@ import de.open4me.hibiscus.reports.automation.model.RunStatus;
 
 public final class AutomationRepository
 {
+    public static final String EVENT_PENDING = "pending";
+    public static final String EVENT_QUEUED = "queued";
+    public static final String EVENT_PROCESSED = "processed";
+
     private final AutomationConnectionProvider connectionProvider;
 
     public AutomationRepository(AutomationConnectionProvider connectionProvider)
@@ -609,6 +613,16 @@ public final class AutomationRepository
 
     public boolean recordTriggerEvent(String triggerId, String eventType, String eventKey) throws Exception
     {
+        return recordTriggerEvent(triggerId, eventType, eventKey, EVENT_PROCESSED);
+    }
+
+    public boolean recordPendingTransactionEvent(String triggerId, String transactionId) throws Exception
+    {
+        return recordTriggerEvent(triggerId, AutomationTriggerTypes.TRANSACTION_NEW, transactionId, EVENT_PENDING);
+    }
+
+    private boolean recordTriggerEvent(String triggerId, String eventType, String eventKey, String status) throws Exception
+    {
         if (triggerId == null || triggerId.isBlank() || eventType == null || eventType.isBlank()
             || eventKey == null || eventKey.isBlank())
             return false;
@@ -617,12 +631,13 @@ public final class AutomationRepository
             if (triggerEventExists(connection, triggerId, eventType, eventKey))
                 return false;
             try (PreparedStatement statement = connection.prepareStatement(
-                "insert into automation_trigger_event (trigger_id, event_type, event_key, created_at) values (?, ?, ?, ?)"))
+                "insert into automation_trigger_event (trigger_id, event_type, event_key, created_at, event_status) values (?, ?, ?, ?, ?)"))
             {
                 statement.setString(1, triggerId);
                 statement.setString(2, eventType);
                 statement.setString(3, eventKey);
                 statement.setTimestamp(4, Timestamp.valueOf(LocalDateTime.now()));
+                statement.setString(5, status);
                 statement.executeUpdate();
                 return true;
             }
@@ -632,6 +647,61 @@ public final class AutomationRepository
                     return false;
                 throw e;
             }
+        }
+    }
+
+    public List<String> listPendingTransactionEventKeys(String triggerId) throws Exception
+    {
+        try (Connection connection = connectionProvider.getConnection();
+             PreparedStatement statement = connection.prepareStatement(
+                 "select event_key from automation_trigger_event where trigger_id = ? and event_type = ? "
+                     + "and event_status = ? order by id"))
+        {
+            statement.setString(1, triggerId);
+            statement.setString(2, AutomationTriggerTypes.TRANSACTION_NEW);
+            statement.setString(3, EVENT_PENDING);
+            List<String> result = new ArrayList<>();
+            try (ResultSet rs = statement.executeQuery())
+            {
+                while (rs.next())
+                    result.add(rs.getString(1));
+            }
+            return result;
+        }
+    }
+
+    public void resetQueuedTransactionEvents() throws Exception
+    {
+        try (Connection connection = connectionProvider.getConnection();
+             PreparedStatement statement = connection.prepareStatement(
+                 "update automation_trigger_event set event_status = ? where event_type = ? and event_status = ?"))
+        {
+            statement.setString(1, EVENT_PENDING);
+            statement.setString(2, AutomationTriggerTypes.TRANSACTION_NEW);
+            statement.setString(3, EVENT_QUEUED);
+            statement.executeUpdate();
+        }
+    }
+
+    public void updateTransactionEventStatus(String triggerId, List<String> transactionIds, String status)
+        throws Exception
+    {
+        if (triggerId == null || triggerId.isBlank() || transactionIds == null || transactionIds.isEmpty())
+            return;
+        try (Connection connection = connectionProvider.getConnection();
+             PreparedStatement statement = connection.prepareStatement(
+                 "update automation_trigger_event set event_status = ? where trigger_id = ? and event_type = ? "
+                     + "and event_key = ?"))
+        {
+            for (String transactionId : transactionIds)
+            {
+                statement.setString(1, status);
+                statement.setString(2, triggerId);
+                statement.setString(3, AutomationTriggerTypes.TRANSACTION_NEW);
+                statement.setString(4, transactionId);
+                statement.addBatch();
+            }
+            statement.executeBatch();
         }
     }
 
@@ -652,7 +722,7 @@ public final class AutomationRepository
                 }
                 Timestamp now = Timestamp.valueOf(LocalDateTime.now());
                 try (PreparedStatement statement = connection.prepareStatement(
-                    "insert into automation_trigger_event (trigger_id, event_type, event_key, created_at) values (?, ?, ?, ?)"))
+                    "insert into automation_trigger_event (trigger_id, event_type, event_key, created_at, event_status) values (?, ?, ?, ?, ?)"))
                 {
                     for (String transactionId : transactionIds)
                     {
@@ -662,6 +732,7 @@ public final class AutomationRepository
                         statement.setString(2, AutomationTriggerTypes.TRANSACTION_NEW);
                         statement.setString(3, transactionId);
                         statement.setTimestamp(4, now);
+                        statement.setString(5, EVENT_PROCESSED);
                         statement.addBatch();
                     }
                     statement.executeBatch();

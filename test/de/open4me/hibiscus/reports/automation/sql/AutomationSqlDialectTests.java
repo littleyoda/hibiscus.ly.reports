@@ -34,12 +34,14 @@ public final class AutomationSqlDialectTests
         java.util.List<AutomationSqlChange> changes = AutomationSqlChange.changesSince(2,
             AutomationSqlDialect.forProductName("H2"));
 
-        check(changes.size() == 1, "one migration after version 2");
-        AutomationSqlChange change = changes.get(0);
-        check(change.version() == 3, "transaction event migration version");
-        String sql = String.join("\n", change.statements());
+        check(changes.size() == 2, "two migrations after version 2");
+        check(changes.get(0).version() == 3, "transaction event migration version");
+        check(changes.get(1).version() == 4, "transaction event status migration version");
+        String sql = String.join("\n", changes.get(0).statements()) + "\n"
+            + String.join("\n", changes.get(1).statements());
         check(sql.contains("automation_trigger_event"), "migration creates event table");
         check(sql.contains("trigger_id, event_type, event_key"), "migration creates unique event key");
+        check(sql.contains("event_status"), "migration adds event status");
     }
 
     private static void check(boolean condition, String message)
