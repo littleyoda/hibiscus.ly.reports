@@ -6,8 +6,10 @@ import java.nio.file.Path;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 
 import de.open4me.hibiscus.reports.api.ReportTemplateContext;
 import de.open4me.hibiscus.reports.model.CategoryInfo;
@@ -54,296 +56,320 @@ public final class DynamicReportTests
 
     private static void createsExampleReportWhenNoReportsExist() throws Exception
     {
-        Path base = Files.createTempDirectory("hibiscus-reports-example");
-        DynamicReportRepository repository = new DynamicReportRepository(base);
-        repository.initialize();
+        withTempDirectory("hibiscus-reports-example", base -> {
+            DynamicReportRepository repository = new DynamicReportRepository(base);
+            repository.initialize();
 
-        List<DynamicReport> reports = repository.listReports();
-        check(reports.size() == 1, "example report count");
-        checkEquals("Beispiel", reports.get(0).displayName(), "example report name");
-        check(Files.exists(base.resolve("reports/Beispiel.html")), "example report file");
+            List<DynamicReport> reports = repository.listReports();
+            check(reports.size() == 1, "example report count");
+            checkEquals("Beispiel", reports.get(0).displayName(), "example report name");
+            check(Files.exists(base.resolve("reports/Beispiel.html")), "example report file");
+        });
     }
 
     private static void listsOnlyReportsBelowReportsDirectory() throws Exception
     {
-        Path base = Files.createTempDirectory("hibiscus-reports-list");
-        write(base.resolve("reports/foo.html"), "foo");
-        write(base.resolve("reports/sub/bar.htm"), "bar");
-        write(base.resolve("layouts/base.html"), "layout");
-        write(base.resolve("reports/readme.txt"), "text");
+        withTempDirectory("hibiscus-reports-list", base -> {
+            write(base.resolve("reports/foo.html"), "foo");
+            write(base.resolve("reports/sub/bar.htm"), "bar");
+            write(base.resolve("layouts/base.html"), "layout");
+            write(base.resolve("reports/readme.txt"), "text");
 
-        List<String> names = new DynamicReportRepository(base).listReports().stream()
-            .map(DynamicReport::displayName).toList();
-        checkEquals(List.of("foo", "sub/bar"), names, "report names");
+            List<String> names = new DynamicReportRepository(base).listReports().stream()
+                .map(DynamicReport::displayName).toList();
+            checkEquals(List.of("foo", "sub/bar"), names, "report names");
+        });
     }
 
     private static void createsNewReportsBelowReportsDirectory() throws Exception
     {
-        Path base = Files.createTempDirectory("hibiscus-reports-create");
-        DynamicReportRepository repository = new DynamicReportRepository(base);
+        withTempDirectory("hibiscus-reports-create", base -> {
+            DynamicReportRepository repository = new DynamicReportRepository(base);
 
-        DynamicReport first = repository.createReport("foo");
-        DynamicReport second = repository.createReport("sub/bar.html");
+            DynamicReport first = repository.createReport("foo");
+            DynamicReport second = repository.createReport("sub/bar.html");
 
-        checkEquals("foo", first.displayName(), "created report name");
-        checkEquals("sub/bar", second.displayName(), "created sub report name");
-        check(Files.exists(base.resolve("reports/foo.html")), "created html report");
-        check(Files.exists(base.resolve("reports/sub/bar.html")), "created nested html report");
+            checkEquals("foo", first.displayName(), "created report name");
+            checkEquals("sub/bar", second.displayName(), "created sub report name");
+            check(Files.exists(base.resolve("reports/foo.html")), "created html report");
+            check(Files.exists(base.resolve("reports/sub/bar.html")), "created nested html report");
+        });
     }
 
     private static void rejectsInvalidNewReportPaths() throws Exception
     {
-        Path base = Files.createTempDirectory("hibiscus-reports-invalid");
-        DynamicReportRepository repository = new DynamicReportRepository(base);
-        repository.createReport("foo");
+        withTempDirectory("hibiscus-reports-invalid", base -> {
+            DynamicReportRepository repository = new DynamicReportRepository(base);
+            repository.createReport("foo");
 
-        expectIOException(() -> repository.createReport("foo"), "duplicate report");
-        expectIOException(() -> repository.createReport("../outside"), "parent traversal");
-        expectIOException(() -> repository.createReport("sub/../outside"), "normalized traversal");
-        expectIOException(() -> repository.createReport(base.resolve("absolute").toString()), "absolute path");
+            expectIOException(() -> repository.createReport("foo"), "duplicate report");
+            expectIOException(() -> repository.createReport("../outside"), "parent traversal");
+            expectIOException(() -> repository.createReport("sub/../outside"), "normalized traversal");
+            expectIOException(() -> repository.createReport(base.resolve("absolute").toString()), "absolute path");
+        });
     }
 
     private static void writesReportContent() throws Exception
     {
-        Path base = Files.createTempDirectory("hibiscus-reports-write");
-        DynamicReportRepository repository = new DynamicReportRepository(base);
-        DynamicReport report = repository.createReport("foo");
+        withTempDirectory("hibiscus-reports-write", base -> {
+            DynamicReportRepository repository = new DynamicReportRepository(base);
+            DynamicReport report = repository.createReport("foo");
 
-        repository.write(report, "<h1>Gespeichert</h1>");
+            repository.write(report, "<h1>Gespeichert</h1>");
 
-        checkEquals("<h1>Gespeichert</h1>", repository.read(report), "saved report content");
+            checkEquals("<h1>Gespeichert</h1>", repository.read(report), "saved report content");
+        });
     }
 
     private static void renamesReportsSafely() throws Exception
     {
-        Path base = Files.createTempDirectory("hibiscus-reports-rename");
-        DynamicReportRepository repository = new DynamicReportRepository(base);
-        DynamicReport report = repository.createReport("old");
-        repository.write(report, "content");
+        withTempDirectory("hibiscus-reports-rename", base -> {
+            DynamicReportRepository repository = new DynamicReportRepository(base);
+            DynamicReport report = repository.createReport("old");
+            repository.write(report, "content");
 
-        DynamicReport renamed = repository.renameReport(report, "folder/new");
+            DynamicReport renamed = repository.renameReport(report, "folder/new");
 
-        checkEquals("folder/new", renamed.displayName(), "renamed report name");
-        check(!Files.exists(base.resolve("reports/old.html")), "old report removed");
-        checkEquals("content", repository.read(renamed), "renamed report content");
-        checkEquals(List.of("folder/new"), repository.listReports().stream()
-            .map(DynamicReport::displayName).toList(), "renamed report list");
+            checkEquals("folder/new", renamed.displayName(), "renamed report name");
+            check(!Files.exists(base.resolve("reports/old.html")), "old report removed");
+            checkEquals("content", repository.read(renamed), "renamed report content");
+            checkEquals(List.of("folder/new"), repository.listReports().stream()
+                .map(DynamicReport::displayName).toList(), "renamed report list");
 
-        repository.createReport("existing");
-        expectIOException(() -> repository.renameReport(renamed, "existing"), "rename duplicate report");
-        expectIOException(() -> repository.renameReport(renamed, "../outside"), "rename parent traversal");
-        expectIOException(() -> repository.renameReport(renamed, base.resolve("absolute").toString()),
-            "rename absolute path");
+            repository.createReport("existing");
+            expectIOException(() -> repository.renameReport(renamed, "existing"), "rename duplicate report");
+            expectIOException(() -> repository.renameReport(renamed, "../outside"), "rename parent traversal");
+            expectIOException(() -> repository.renameReport(renamed, base.resolve("absolute").toString()),
+                "rename absolute path");
+        });
     }
 
     private static void deletesReportsSafely() throws Exception
     {
-        Path base = Files.createTempDirectory("hibiscus-reports-delete");
-        DynamicReportRepository repository = new DynamicReportRepository(base);
-        DynamicReport report = repository.createReport("folder/delete-me");
+        withTempDirectory("hibiscus-reports-delete", base -> {
+            DynamicReportRepository repository = new DynamicReportRepository(base);
+            DynamicReport report = repository.createReport("folder/delete-me");
 
-        repository.deleteReport(report);
+            repository.deleteReport(report);
 
-        check(!Files.exists(base.resolve("reports/folder/delete-me.html")), "deleted report file");
-        check(!Files.exists(base.resolve("reports/folder")), "empty report directory removed");
-        check(repository.listReports().isEmpty(), "deleted report removed from list");
-        repository.deleteReport(report);
-        expectIOException(() -> repository.deleteReport(new DynamicReport(base.resolve("outside.html"), "outside")),
-            "delete outside reports directory");
+            check(!Files.exists(base.resolve("reports/folder/delete-me.html")), "deleted report file");
+            check(!Files.exists(base.resolve("reports/folder")), "empty report directory removed");
+            check(repository.listReports().isEmpty(), "deleted report removed from list");
+            repository.deleteReport(report);
+            expectIOException(() -> repository.deleteReport(new DynamicReport(base.resolve("outside.html"), "outside")),
+                "delete outside reports directory");
+        });
     }
 
     private static void restrictsResourceLoadingToBaseDirectory() throws Exception
     {
-        Path base = Files.createTempDirectory("hibiscus-reports-loader");
-        write(base.resolve("layouts/base.html"), "base");
-        Path outside = Files.createTempFile("hibiscus-reports-outside", ".html");
-        Files.writeString(outside, "outside", StandardCharsets.UTF_8);
+        withTempDirectory("hibiscus-reports-loader", base -> {
+            write(base.resolve("layouts/base.html"), "base");
+            Path outside = Files.createTempFile("hibiscus-reports-outside", ".html");
+            try
+            {
+                Files.writeString(outside, "outside", StandardCharsets.UTF_8);
 
-        JameicaReportResourceLoader loader = new JameicaReportResourceLoader(base);
-        checkEquals("base",
-            loader.getString("layouts/base.html", StandardCharsets.UTF_8, null), "resource in base");
-        expectIOException(() -> loader.getString("../" + outside.getFileName(), StandardCharsets.UTF_8, null),
-            "parent traversal");
-        expectIOException(() -> loader.getString(outside.toString(), StandardCharsets.UTF_8, null),
-            "absolute path");
+                JameicaReportResourceLoader loader = new JameicaReportResourceLoader(base);
+                checkEquals("base",
+                    loader.getString("layouts/base.html", StandardCharsets.UTF_8, null), "resource in base");
+                expectIOException(() -> loader.getString("../" + outside.getFileName(), StandardCharsets.UTF_8, null),
+                    "parent traversal");
+                expectIOException(() -> loader.getString(outside.toString(), StandardCharsets.UTF_8, null),
+                    "absolute path");
+            }
+            finally
+            {
+                Files.deleteIfExists(outside);
+            }
+        });
     }
 
     private static void rendersReportWithExtendsAndAccountProxy() throws Exception
     {
-        Path base = Files.createTempDirectory("hibiscus-reports-render");
-        write(base.resolve("layouts/base.html"), "<html><body>{% block body %}{% endblock %}</body></html>");
-        DynamicReportRenderer renderer = new DynamicReportRenderer(base, new FakeAccountProvider());
+        withTempDirectory("hibiscus-reports-render", base -> {
+            write(base.resolve("layouts/base.html"), "<html><body>{% block body %}{% endblock %}</body></html>");
+            DynamicReportRenderer renderer = new DynamicReportRenderer(base, new FakeAccountProvider());
 
-        String template = """
-            {% extends "layouts/base.html" %}
-            {% block body %}
-            {% for konto in konten %}{{ konto.name }} {{ konto.blz }} {{ konto.iban }} {{ konto.gruppe }} {{ konto.saldo }} {{ konto.verfuegbar }} {{ konto.aktualisiert }} {{ konto.aktiv }} {{ konto.offline }}{% endfor %}
-            {% endblock %}
-            """;
-        DynamicReportRenderer.RenderedReport rendered = renderer.render(template);
+            String template = """
+                {% extends "layouts/base.html" %}
+                {% block body %}
+                {% for konto in konten %}{{ konto.name }} {{ konto.blz }} {{ konto.iban }} {{ konto.gruppe }} {{ konto.saldo }} {{ konto.verfuegbar }} {{ konto.aktualisiert }} {{ konto.aktiv }} {{ konto.offline }}{% endfor %}
+                {% endblock %}
+                """;
+            DynamicReportRenderer.RenderedReport rendered = renderer.render(template);
 
-        check(rendered.errors().isEmpty(), "render errors");
-        check(rendered.html().contains("Aktives Girokonto"), "active account name rendered");
-        check(rendered.html().contains("12345678"), "account blz rendered");
-        check(rendered.html().contains("DE001234"), "account iban rendered");
-        check(rendered.html().contains("Privat"), "account group rendered");
-        check(rendered.html().contains("123.46"), "rounded account balance rendered");
-        check(rendered.html().contains("120.12"), "rounded available balance rendered");
-        check(rendered.html().contains("2026-07-08T14:15:16"), "account update date and time rendered");
-        check(rendered.html().contains("true false"), "account active flag rendered");
-        check(rendered.html().contains("false"), "account offline flag rendered");
-        check(!rendered.html().contains("Archivkonto"), "inactive account is not rendered by default");
+            check(rendered.errors().isEmpty(), "render errors");
+            check(rendered.html().contains("Aktives Girokonto"), "active account name rendered");
+            check(rendered.html().contains("12345678"), "account blz rendered");
+            check(rendered.html().contains("DE001234"), "account iban rendered");
+            check(rendered.html().contains("Privat"), "account group rendered");
+            check(rendered.html().contains("123.46"), "rounded account balance rendered");
+            check(rendered.html().contains("120.12"), "rounded available balance rendered");
+            check(rendered.html().contains("2026-07-08T14:15:16"), "account update date and time rendered");
+            check(rendered.html().contains("true false"), "account active flag rendered");
+            check(rendered.html().contains("false"), "account offline flag rendered");
+            check(!rendered.html().contains("Archivkonto"), "inactive account is not rendered by default");
+        });
     }
 
     private static void rendersExplicitActiveAndAllAccountProxyLists() throws Exception
     {
-        Path base = Files.createTempDirectory("hibiscus-reports-render-lists");
-        DynamicReportRenderer renderer = new DynamicReportRenderer(base, new FakeAccountProvider());
+        withTempDirectory("hibiscus-reports-render-lists", base -> {
+            DynamicReportRenderer renderer = new DynamicReportRenderer(base, new FakeAccountProvider());
 
-        DynamicReportRenderer.RenderedReport active = renderer.render(
-            "{% for konto in konten.aktive %}{{ konto.name }};{% endfor %}");
-        DynamicReportRenderer.RenderedReport all = renderer.render(
-            "{% for konto in konten.alle %}{{ konto.name }};{% endfor %}");
+            DynamicReportRenderer.RenderedReport active = renderer.render(
+                "{% for konto in konten.aktive %}{{ konto.name }};{% endfor %}");
+            DynamicReportRenderer.RenderedReport all = renderer.render(
+                "{% for konto in konten.alle %}{{ konto.name }};{% endfor %}");
 
-        check(active.errors().isEmpty(), "active render errors");
-        check(all.errors().isEmpty(), "all render errors");
-        checkEquals("Aktives Girokonto;Aktives Tagesgeld;", active.html(), "active accounts");
-        checkEquals("Aktives Girokonto;Aktives Tagesgeld;Archivkonto;", all.html(), "all accounts");
+            check(active.errors().isEmpty(), "active render errors");
+            check(all.errors().isEmpty(), "all render errors");
+            checkEquals("Aktives Girokonto;Aktives Tagesgeld;", active.html(), "active accounts");
+            checkEquals("Aktives Girokonto;Aktives Tagesgeld;Archivkonto;", all.html(), "all accounts");
+        });
     }
 
     private static void rendersAccountGroups() throws Exception
     {
-        Path base = Files.createTempDirectory("hibiscus-reports-groups");
-        DynamicReportRenderer renderer = new DynamicReportRenderer(base, new FakeAccountProvider());
+        withTempDirectory("hibiscus-reports-groups", base -> {
+            DynamicReportRenderer renderer = new DynamicReportRenderer(base, new FakeAccountProvider());
 
-        DynamicReportRenderer.RenderedReport active = renderer.render(
-            "{% for gruppe in kontogruppen %}{{ gruppe.name }}={{ gruppe.anzahl }}={{ gruppe.saldo }}:{% for konto in gruppe.konten %}{{ konto.name }},{% endfor %};{% endfor %}");
-        DynamicReportRenderer.RenderedReport all = renderer.render(
-            "{% for gruppe in kontogruppen.alle %}{{ gruppe.name }}={{ gruppe.anzahl }};{% endfor %}");
+            DynamicReportRenderer.RenderedReport active = renderer.render(
+                "{% for gruppe in kontogruppen %}{{ gruppe.name }}={{ gruppe.anzahl }}={{ gruppe.saldo }}:{% for konto in gruppe.konten %}{{ konto.name }},{% endfor %};{% endfor %}");
+            DynamicReportRenderer.RenderedReport all = renderer.render(
+                "{% for gruppe in kontogruppen.alle %}{{ gruppe.name }}={{ gruppe.anzahl }};{% endfor %}");
 
-        check(active.errors().isEmpty(), "active group render errors");
-        check(all.errors().isEmpty(), "all group render errors");
-        check(active.html().contains("Privat=2=173.46:Aktives Girokonto,Aktives Tagesgeld,;"),
-            "active group accounts");
-        check(!active.html().contains("Archiv=1"), "inactive group is not rendered by default");
-        check(all.html().contains("Privat=2;"), "all groups active group");
-        check(all.html().contains("Archiv=1;"), "all groups archived group");
+            check(active.errors().isEmpty(), "active group render errors");
+            check(all.errors().isEmpty(), "all group render errors");
+            check(active.html().contains("Privat=2=173.46:Aktives Girokonto,Aktives Tagesgeld,;"),
+                "active group accounts");
+            check(!active.html().contains("Archiv=1"), "inactive group is not rendered by default");
+            check(all.html().contains("Privat=2;"), "all groups active group");
+            check(all.html().contains("Archiv=1;"), "all groups archived group");
+        });
     }
 
     private static void rendersGlobalAndAccountTransactions() throws Exception
     {
-        Path base = Files.createTempDirectory("hibiscus-reports-transactions");
-        FakeTransactionProvider transactionProvider = new FakeTransactionProvider();
-        DynamicReportRenderer renderer = new DynamicReportRenderer(base, new FakeAccountProvider(transactionProvider),
-            transactionProvider);
+        withTempDirectory("hibiscus-reports-transactions", base -> {
+            FakeTransactionProvider transactionProvider = new FakeTransactionProvider();
+            DynamicReportRenderer renderer = new DynamicReportRenderer(base, new FakeAccountProvider(transactionProvider),
+                transactionProvider);
 
-        DynamicReportRenderer.RenderedReport rendered = renderer.render("""
-            {% for umsatz in umsaetze.limit(1) %}G:{{ umsatz.konto.name }} {{ umsatz.zweck }};{% endfor %}
-            {% for konto in konten %}
-            {% for umsatz in konto.umsaetze.limit(1) %}K:{{ konto.name }} {{ umsatz.zweck }};{% endfor %}
-            {% endfor %}
-            """);
+            DynamicReportRenderer.RenderedReport rendered = renderer.render("""
+                {% for umsatz in umsaetze.limit(1) %}G:{{ umsatz.konto.name }} {{ umsatz.zweck }};{% endfor %}
+                {% for konto in konten %}
+                {% for umsatz in konto.umsaetze.limit(1) %}K:{{ konto.name }} {{ umsatz.zweck }};{% endfor %}
+                {% endfor %}
+                """);
 
-        check(rendered.errors().isEmpty(), "transaction render errors");
-        check(rendered.html().contains("G:Aktives Girokonto Globaler Umsatz"), "global transaction rendered");
-        check(rendered.html().contains("K:Aktives Girokonto Kontoumsatz"), "account transaction rendered");
-        check(transactionProvider.queries.stream().anyMatch(query -> query.accountId() == null
-            && query.from() != null && query.limit() != null && query.limit() == 1), "global default query");
-        check(transactionProvider.queries.stream().anyMatch(query -> "active".equals(query.accountId())
-            && query.limit() != null && query.limit() == 1), "account query");
+            check(rendered.errors().isEmpty(), "transaction render errors");
+            check(rendered.html().contains("G:Aktives Girokonto Globaler Umsatz"), "global transaction rendered");
+            check(rendered.html().contains("K:Aktives Girokonto Kontoumsatz"), "account transaction rendered");
+            check(transactionProvider.queries.stream().anyMatch(query -> query.accountId() == null
+                && query.from() != null && query.limit() != null && query.limit() == 1), "global default query");
+            check(transactionProvider.queries.stream().anyMatch(query -> "active".equals(query.accountId())
+                && query.limit() != null && query.limit() == 1), "account query");
+        });
     }
 
     private static void rendersExampleReportWithTransactions() throws Exception
     {
-        Path base = Files.createTempDirectory("hibiscus-reports-example-render");
-        DynamicReportRepository repository = new DynamicReportRepository(base);
-        repository.initialize();
-        String template = repository.read(repository.listReports().get(0));
+        withTempDirectory("hibiscus-reports-example-render", base -> {
+            DynamicReportRepository repository = new DynamicReportRepository(base);
+            repository.initialize();
+            String template = repository.read(repository.listReports().get(0));
 
-        FakeTransactionProvider transactionProvider = new FakeTransactionProvider();
-        DynamicReportRenderer renderer = new DynamicReportRenderer(base, new FakeAccountProvider(transactionProvider),
-            transactionProvider);
-        DynamicReportRenderer.RenderedReport rendered = renderer.render(template);
+            FakeTransactionProvider transactionProvider = new FakeTransactionProvider();
+            DynamicReportRenderer renderer = new DynamicReportRenderer(base, new FakeAccountProvider(transactionProvider),
+                transactionProvider);
+            DynamicReportRenderer.RenderedReport rendered = renderer.render(template);
 
-        check(rendered.errors().isEmpty(), "example report render errors");
-        check(rendered.html().contains("Beispiel-Report"), "example title");
-        check(rendered.html().contains("Saldo aller Konten"), "chart section");
-        check(rendered.html().contains("Chart.js"), "chart js section");
-        check(rendered.html().contains("Letzte Umsätze"), "global transaction section");
-        check(rendered.html().contains("Letzte Umsätze je Konto"), "account transaction section");
-        check(rendered.html().contains("Umsatz-Filter"), "transaction filter section");
-        check(rendered.html().contains("Kategoriepfad"), "category path column");
-        check(rendered.html().contains("Kontogruppen"), "account groups section");
-        check(rendered.html().contains("Globaler Umsatz"), "example global transaction");
-        check(rendered.html().contains("Kontoumsatz"), "example account transaction");
-        check(rendered.html().contains("45 Lebenshaltung"), "example category root");
-        check(rendered.html().contains("Food"), "example category leaf");
-        check(rendered.html().contains("Archivkonto"), "all accounts section");
+            check(rendered.errors().isEmpty(), "example report render errors");
+            check(rendered.html().contains("Beispiel-Report"), "example title");
+            check(rendered.html().contains("Saldo aller Konten"), "chart section");
+            check(rendered.html().contains("Chart.js"), "chart js section");
+            check(rendered.html().contains("Letzte Umsätze"), "global transaction section");
+            check(rendered.html().contains("Letzte Umsätze je Konto"), "account transaction section");
+            check(rendered.html().contains("Umsatz-Filter"), "transaction filter section");
+            check(rendered.html().contains("Kategoriepfad"), "category path column");
+            check(rendered.html().contains("Kontogruppen"), "account groups section");
+            check(rendered.html().contains("Globaler Umsatz"), "example global transaction");
+            check(rendered.html().contains("Kontoumsatz"), "example account transaction");
+            check(rendered.html().contains("45 Lebenshaltung"), "example category root");
+            check(rendered.html().contains("Food"), "example category leaf");
+            check(rendered.html().contains("Archivkonto"), "all accounts section");
+        });
     }
 
     private static void rendersCategoryInfoProperties() throws Exception
     {
-        Path base = Files.createTempDirectory("hibiscus-reports-category-properties");
-        FakeTransactionProvider transactionProvider = new FakeTransactionProvider();
-        DynamicReportRenderer renderer = new DynamicReportRenderer(base, new FakeAccountProvider(transactionProvider),
-            transactionProvider);
+        withTempDirectory("hibiscus-reports-category-properties", base -> {
+            FakeTransactionProvider transactionProvider = new FakeTransactionProvider();
+            DynamicReportRenderer renderer = new DynamicReportRenderer(base, new FakeAccountProvider(transactionProvider),
+                transactionProvider);
 
-        DynamicReportRenderer.RenderedReport rendered = renderer.render("""
-            {% for umsatz in umsaetze.limit(1) %}
-            {% for kategorie in umsatz.kategoriePfad %}
-            {{ kategorie.id }}:{{ kategorie.name }}:{{ kategorie.skipReports }}:{{ kategorie.color }};
-            {% endfor %}
-            {% endfor %}
-            """);
+            DynamicReportRenderer.RenderedReport rendered = renderer.render("""
+                {% for umsatz in umsaetze.limit(1) %}
+                {% for kategorie in umsatz.kategoriePfad %}
+                {{ kategorie.id }}:{{ kategorie.name }}:{{ kategorie.skipReports }}:{{ kategorie.color }};
+                {% endfor %}
+                {% endfor %}
+                """);
 
-        check(rendered.errors().isEmpty(), "category info render errors");
-        check(rendered.html().contains("41:45 Lebenshaltung:false:"), "category root properties");
-        check(rendered.html().contains("13:Food:false:1193046;"), "category leaf properties");
+            check(rendered.errors().isEmpty(), "category info render errors");
+            check(rendered.html().contains("41:45 Lebenshaltung:false:"), "category root properties");
+            check(rendered.html().contains("13:Food:false:1193046;"), "category leaf properties");
+        });
     }
 
     private static void rendersObjectsFromTemplateContextExtension() throws Exception
     {
-        Path base = Files.createTempDirectory("hibiscus-reports-template-context-extension");
-        Extension extension = extendable -> ((ReportTemplateContext) extendable)
-            .put("extern", Map.of("name", "Depotviewer"));
-        withContextExtension(extension, () -> {
-            DynamicReportRenderer renderer = new DynamicReportRenderer(base, new FakeAccountProvider());
-            DynamicReportRenderer.RenderedReport rendered = renderer.render(
-                "{{ extern.name }} {% for konto in konten %}{{ konto.name }}{% endfor %}");
+        withTempDirectory("hibiscus-reports-template-context-extension", base -> {
+            Extension extension = extendable -> ((ReportTemplateContext) extendable)
+                .put("extern", Map.of("name", "Depotviewer"));
+            withContextExtension(extension, () -> {
+                DynamicReportRenderer renderer = new DynamicReportRenderer(base, new FakeAccountProvider());
+                DynamicReportRenderer.RenderedReport rendered = renderer.render(
+                    "{{ extern.name }} {% for konto in konten %}{{ konto.name }}{% endfor %}");
 
-            check(rendered.errors().isEmpty(), "context extension render errors");
-            check(rendered.html().contains("Depotviewer Aktives Girokonto"), "external object rendered");
+                check(rendered.errors().isEmpty(), "context extension render errors");
+                check(rendered.html().contains("Depotviewer Aktives Girokonto"), "external object rendered");
+            });
         });
     }
 
     private static void reportsTemplateContextExtensionErrors() throws Exception
     {
-        Path base = Files.createTempDirectory("hibiscus-reports-template-context-extension-error");
-        Extension extension = extendable -> {
-            throw new IllegalStateException("Provider defekt");
-        };
-        withContextExtension(extension, () -> {
-            DynamicReportRenderer renderer = new DynamicReportRenderer(base, new FakeAccountProvider());
-            DynamicReportRenderer.RenderedReport rendered = renderer.render("OK");
+        withTempDirectory("hibiscus-reports-template-context-extension-error", base -> {
+            Extension extension = extendable -> {
+                throw new IllegalStateException("Provider defekt");
+            };
+            withContextExtension(extension, () -> {
+                DynamicReportRenderer renderer = new DynamicReportRenderer(base, new FakeAccountProvider());
+                DynamicReportRenderer.RenderedReport rendered = renderer.render("OK");
 
-            check(rendered.html().contains("OK"), "template still rendered");
-            check(rendered.errors().stream().anyMatch(error -> error.contains("Provider defekt")),
-                "context extension error reported");
+                check(rendered.html().contains("OK"), "template still rendered");
+                check(rendered.errors().stream().anyMatch(error -> error.contains("Provider defekt")),
+                    "context extension error reported");
+            });
         });
     }
 
     private static void rendersAccountsWithUnavailableAmounts() throws Exception
     {
-        Path base = Files.createTempDirectory("hibiscus-reports-unavailable-amounts");
-        DynamicReportRenderer renderer = new DynamicReportRenderer(base, filter -> List.of(
-            new ReportAccount("nan", Double.NaN, Double.NaN, null, "Konto ohne Betrag", "", "", "",
-                false, null)));
+        withTempDirectory("hibiscus-reports-unavailable-amounts", base -> {
+            DynamicReportRenderer renderer = new DynamicReportRenderer(base, filter -> List.of(
+                new ReportAccount("nan", Double.NaN, Double.NaN, null, "Konto ohne Betrag", "", "", "",
+                    false, null)));
 
-        DynamicReportRenderer.RenderedReport rendered = renderer.render(
-            "{% for konto in konten %}{{ konto.name }}={{ konto.saldo }}={{ konto.verfuegbar }}={{ konto.aktualisiert }}={{ konto.offline }}{% endfor %}");
+            DynamicReportRenderer.RenderedReport rendered = renderer.render(
+                "{% for konto in konten %}{{ konto.name }}={{ konto.saldo }}={{ konto.verfuegbar }}={{ konto.aktualisiert }}={{ konto.offline }}{% endfor %}");
 
-        check(rendered.errors().isEmpty(), "unavailable amount render errors");
-        checkEquals("Konto ohne Betrag=0.0=0.0==false", rendered.html(), "unavailable amount fallback");
+            check(rendered.errors().isEmpty(), "unavailable amount render errors");
+            checkEquals("Konto ohne Betrag=0.0=0.0==false", rendered.html(), "unavailable amount fallback");
+        });
     }
 
     private static void write(Path path, String text) throws Exception
@@ -365,6 +391,46 @@ public final class DynamicReportTests
         throw new AssertionError("expected IOException: " + message);
     }
 
+    private static void withTempDirectory(String prefix, ThrowingPathRunnable runnable) throws Exception
+    {
+        Path directory = Files.createTempDirectory(prefix);
+        Throwable failure = null;
+        try
+        {
+            runnable.run(directory);
+        }
+        catch (Throwable t)
+        {
+            failure = t;
+            throw t;
+        }
+        finally
+        {
+            try
+            {
+                deleteRecursively(directory);
+            }
+            catch (Exception cleanup)
+            {
+                if (failure != null)
+                    failure.addSuppressed(cleanup);
+                else
+                    throw cleanup;
+            }
+        }
+    }
+
+    private static void deleteRecursively(Path directory) throws java.io.IOException
+    {
+        if (!Files.exists(directory))
+            return;
+        try (Stream<Path> paths = Files.walk(directory))
+        {
+            for (Path path : paths.sorted(Comparator.reverseOrder()).toList())
+                Files.deleteIfExists(path);
+        }
+    }
+
     private static void withContextExtension(Extension extension, ThrowingRunnable runnable) throws Exception
     {
         ExtensionRegistry.register(extension, ReportTemplateContext.EXTENDABLE_ID);
@@ -383,6 +449,11 @@ public final class DynamicReportTests
     private interface ThrowingRunnable
     {
         void run() throws Exception;
+    }
+
+    private interface ThrowingPathRunnable
+    {
+        void run(Path path) throws Exception;
     }
 
     private static void check(boolean condition, String message)
