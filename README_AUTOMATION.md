@@ -367,6 +367,12 @@ Alternativ kann derselbe Dialog deutsch benannt aufgerufen werden:
 dialoge.hinweis("Prüfung abgeschlossen", "Alle Konten wurden geprüft.");
 ```
 
+Längerer, scrollbarer Text mit Kopieren-Button:
+
+```javascript
+dialoge.text("Neue Umsätze", details);
+```
+
 Bestätigung:
 
 ```javascript
@@ -629,7 +635,8 @@ for (var n = 0; n < neueUmsaetze.size(); n++) {
   "Weitere Verwendungszwecke: " + joinList(umsatz.getVerwendungszwecke()) + "\n\n";
 }
 
-dialoge.info("Neue Umsätze", details);
+log.info(details);
+dialoge.text("Neue Umsätze", details);
 ```
 
 ## Datenhaltung

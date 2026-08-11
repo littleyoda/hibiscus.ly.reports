@@ -18,6 +18,7 @@ final class SankeyGraphBuilderTests
         createsBalancedDeficitGraph();
         createsChildFiltersForCollapsedExpenseCategories();
         bundlesSmallFlowsWithoutLosingValue();
+        createsFiltersForBundledChildFlows();
         keepsUnassignedFlowsVisibleBelowThreshold();
         leavesEmptyReportsEmpty();
     }
@@ -84,14 +85,31 @@ final class SankeyGraphBuilderTests
 
         checkNode(graph, "income:__other__", 10d);
         checkNode(graph, "expense:__other__", 10d);
-        checkNoFilter(graph, "income:__other__");
-        checkNoFilter(graph, "expense:__other__");
+        checkRuleFilter(graph, "income:__other__", 1, rule("bonus", false));
+        checkRuleFilter(graph, "expense:__other__", -1, rule("fees", true));
         FlowAggregatorTests.checkEquals(1000d,
             graph.links().stream().filter(link -> link.targetId().equals("available")).mapToDouble(SankeyGraph.Link::amount).sum(),
             "bundled income links");
         FlowAggregatorTests.checkEquals(960d,
             graph.links().stream().filter(link -> link.sourceId().equals("available") && !link.targetId().equals("surplus"))
                 .mapToDouble(SankeyGraph.Link::amount).sum(), "bundled expense links");
+        checkConservation(graph);
+    }
+
+    private static void createsFiltersForBundledChildFlows()
+    {
+        FlowReport report = new FlowReport(
+            List.of(value("salary", "Gehalt", 1000)),
+            List.of(group("housing", "Wohnen", 715,
+                value("consumption", "Verbrauch", 700, true),
+                value("garden", "Garten", 10, true),
+                value("housing", "Sonstiges", 5, false))),
+            1);
+        SankeyGraph graph = new SankeyGraphBuilder().build(report, Set.of("housing"), 2d);
+
+        checkNode(graph, "sub:housing:__other__", 15d);
+        checkRuleFilter(graph, "sub:housing:__other__", -1,
+            rule("garden", true), rule("housing", false));
         checkConservation(graph);
     }
 
@@ -179,6 +197,22 @@ final class SankeyGraphBuilderTests
         SankeyGraph.Node node = graph.nodes().stream().filter(candidate -> candidate.id().equals(id)).findFirst()
             .orElseThrow(() -> new AssertionError("missing node " + id));
         FlowAggregatorTests.check(node.transactionFilter() == null, "unexpected transaction filter " + id);
+    }
+
+    private static SankeyGraph.CategoryRule rule(String categoryId, boolean includeChildren)
+    {
+        return new SankeyGraph.CategoryRule(categoryId, includeChildren);
+    }
+
+    private static void checkRuleFilter(SankeyGraph graph, String id, int sign,
+                                        SankeyGraph.CategoryRule... rules)
+    {
+        SankeyGraph.Node node = graph.nodes().stream().filter(candidate -> candidate.id().equals(id)).findFirst()
+            .orElseThrow(() -> new AssertionError("missing node " + id));
+        SankeyGraph.TransactionFilter filter = node.transactionFilter();
+        FlowAggregatorTests.check(filter != null && filter.canOpen(), "missing transaction filter " + id);
+        FlowAggregatorTests.checkEquals(sign, filter.sign(), "filter sign " + id);
+        FlowAggregatorTests.checkEquals(List.of(rules), filter.categoryRules(), "filter category rules " + id);
     }
 
     private static void checkConservation(SankeyGraph graph)

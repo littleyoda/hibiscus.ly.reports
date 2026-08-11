@@ -3,8 +3,17 @@ package de.open4me.hibiscus.reports.automation.runtime;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
+import org.eclipse.swt.SWT;
+import org.eclipse.swt.dnd.Clipboard;
+import org.eclipse.swt.dnd.TextTransfer;
+import org.eclipse.swt.dnd.Transfer;
+import org.eclipse.swt.layout.GridData;
+import org.eclipse.swt.layout.GridLayout;
+import org.eclipse.swt.widgets.Text;
+
 import de.open4me.hibiscus.reports.data.ReportAccountsProxy;
 import de.open4me.hibiscus.reports.model.ReportAccount;
+import de.willuhn.jameica.gui.Action;
 import de.willuhn.jameica.gui.GUI;
 import de.willuhn.jameica.gui.dialogs.AbstractDialog;
 import de.willuhn.jameica.gui.dialogs.SimpleDialog;
@@ -13,6 +22,8 @@ import de.willuhn.jameica.gui.input.SelectInput;
 import de.willuhn.jameica.gui.parts.ButtonArea;
 import de.willuhn.jameica.gui.util.Container;
 import de.willuhn.jameica.gui.util.SimpleContainer;
+import de.willuhn.jameica.messaging.StatusBarMessage;
+import de.willuhn.jameica.system.Application;
 import de.willuhn.jameica.system.OperationCanceledException;
 import de.willuhn.util.ApplicationException;
 
@@ -86,6 +97,22 @@ public final class AutomationDialogs
     public void hinweis(String titel, String text)
     {
         info(titel, text);
+    }
+
+    public void text(String titel, String text)
+    {
+        awaitDialogAllowed();
+        GUI.getDisplay().syncExec(() -> {
+            try
+            {
+                new LongTextDialog(titel, text).open();
+            }
+            catch (Exception e)
+            {
+                throw new IllegalStateException(e);
+            }
+        });
+        log.info("Text-Dialog '" + safe(titel) + "' angezeigt.");
     }
 
     public DialogResult<String> eingabe(String titel, String text)
@@ -204,6 +231,75 @@ public final class AutomationDialogs
         protected DialogResult<ReportAccount> getData()
         {
             return result;
+        }
+    }
+
+    private static final class LongTextDialog extends AbstractDialog<Void>
+    {
+        private static final int WINDOW_WIDTH = 900;
+        private static final int WINDOW_HEIGHT = 650;
+
+        private final String value;
+
+        LongTextDialog(String title, String value)
+        {
+            super(POSITION_CENTER);
+            setTitle(title == null || title.isBlank() ? "Text" : title);
+            setSize(WINDOW_WIDTH, WINDOW_HEIGHT);
+            this.value = value == null ? "" : value;
+        }
+
+        @Override
+        protected void paint(org.eclipse.swt.widgets.Composite parent) throws Exception
+        {
+            parent.setLayout(new GridLayout(1, false));
+
+            Text text = new Text(parent, SWT.BORDER | SWT.MULTI | SWT.WRAP | SWT.V_SCROLL | SWT.H_SCROLL
+                | SWT.READ_ONLY);
+            text.setText(value);
+            text.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
+
+            ButtonArea buttons = new ButtonArea();
+            buttons.addButton("Kopieren", new Action()
+            {
+                @Override
+                public void handleAction(Object context) throws ApplicationException
+                {
+                    copyToClipboard(value);
+                }
+            }, null, false, "edit-copy.png");
+            buttons.addButton("Schließen", context -> close(), null, true, "ok.png");
+            buttons.paint(parent);
+
+            getShell().setMinimumSize(getShell().computeSize(WINDOW_WIDTH, WINDOW_HEIGHT));
+        }
+
+        private static void copyToClipboard(String value) throws ApplicationException
+        {
+            try
+            {
+                Clipboard clipboard = new Clipboard(GUI.getDisplay());
+                try
+                {
+                    clipboard.setContents(new Object[] { value }, new Transfer[] { TextTransfer.getInstance() });
+                }
+                finally
+                {
+                    clipboard.dispose();
+                }
+                Application.getMessagingFactory().sendMessage(new StatusBarMessage(
+                    "Text wurde in die Zwischenablage kopiert.", StatusBarMessage.TYPE_SUCCESS));
+            }
+            catch (Exception e)
+            {
+                throw new ApplicationException("Text konnte nicht kopiert werden: " + e.getMessage(), e);
+            }
+        }
+
+        @Override
+        protected Void getData()
+        {
+            return null;
         }
     }
 }

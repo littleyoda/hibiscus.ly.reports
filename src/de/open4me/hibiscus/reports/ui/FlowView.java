@@ -328,7 +328,8 @@ public class FlowView extends AbstractView
         Application.getMessagingFactory().sendMessage(new StatusBarMessage(
             "Umsätze werden geöffnet...", StatusBarMessage.TYPE_INFO));
         GUI.startView(FlowTransactionsView.class, new FlowTransactionSelection("Umsätze – " + node.name(),
-            displayedFrom, displayedTo, selectedAccountIds(), node.transactionFilter()));
+            displayedFrom, displayedTo, selectedAccountIds(), node.transactionFilter(),
+            FlowTransactionSelection.Sign.ALL, true));
     }
 
     private Set<String> selectedAccountIds()

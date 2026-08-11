@@ -28,13 +28,14 @@ public class SankeyGraphBuilder
         List<SankeyGraph.Link> links = new ArrayList<>();
         if (available <= 0d)
             return new SankeyGraph(nodes, links, report.monthCount(), incomeTotal, expenseTotal);
-        List<FlowReport.Value> incomes = bundleValues(report.incomes(), incomeTotal, threshold,
+        List<VisibleValue> incomes = bundleValues(report.incomes(), incomeTotal, threshold,
             "__other__", "Sonstige Einnahmen", OTHER_COLOR);
 
-        for (FlowReport.Value income : incomes)
+        for (VisibleValue income : incomes)
         {
             String id = "income:" + income.key();
-            SankeyGraph.TransactionFilter filter = transactionFilter(income.key(), false, 1);
+            SankeyGraph.TransactionFilter filter = transactionFilter(income.key(), false, 1,
+                income.categoryRules());
             nodes.add(new SankeyGraph.Node(id, income.name(), income.amount(), incomeTotal,
                 income.color(), 0, null, filter));
             links.add(new SankeyGraph.Link(id, "available", income.amount()));
@@ -51,25 +52,26 @@ public class SankeyGraphBuilder
         nodes.add(new SankeyGraph.Node("available", centralName, available, available,
             CENTRAL_COLOR, 1, null, null));
 
-        List<FlowReport.ExpenseGroup> visibleGroups = bundleGroups(report.expenses(), expenseTotal, threshold);
-        for (FlowReport.ExpenseGroup group : visibleGroups)
+        List<VisibleExpenseGroup> visibleGroups = bundleGroups(report.expenses(), expenseTotal, threshold);
+        for (VisibleExpenseGroup group : visibleGroups)
         {
             String id = "expense:" + group.key();
             String expandable = group.key().equals("__other__") ? null : group.key();
-            SankeyGraph.TransactionFilter filter = transactionFilter(group.key(), true, -1);
+            SankeyGraph.TransactionFilter filter = transactionFilter(group.key(), true, -1,
+                group.categoryRules());
             nodes.add(new SankeyGraph.Node(id, group.name(), group.amount(), available,
                 group.color(), 2, expandable, filter));
             links.add(new SankeyGraph.Link("available", id, group.amount()));
 
             if (expandable != null && expanded.contains(group.key()))
             {
-                List<FlowReport.Value> children = bundleValues(group.children(), expenseTotal, threshold,
+                List<VisibleValue> children = bundleValues(group.children(), expenseTotal, threshold,
                     group.key() + ":__other__", "Sonstige", OTHER_COLOR);
-                for (FlowReport.Value child : children)
+                for (VisibleValue child : children)
                 {
                     String childId = "sub:" + child.key();
                     SankeyGraph.TransactionFilter childFilter = transactionFilter(child.key(),
-                        child.includeChildren(), -1);
+                        child.includeChildren(), -1, child.categoryRules());
                     nodes.add(new SankeyGraph.Node(childId, child.name(), child.amount(), available,
                         child.color(), 3, null, childFilter));
                     links.add(new SankeyGraph.Link(id, childId, child.amount()));
@@ -88,8 +90,11 @@ public class SankeyGraphBuilder
     }
 
     private static SankeyGraph.TransactionFilter transactionFilter(String key, boolean includeChildren,
-                                                                   int sign)
+                                                                   int sign,
+                                                                   List<SankeyGraph.CategoryRule> categoryRules)
     {
+        if (categoryRules != null && !categoryRules.isEmpty())
+            return new SankeyGraph.TransactionFilter(null, false, false, sign, categoryRules);
         if (key == null || key.contains("__other__"))
             return null;
         if (key.startsWith("__unassigned_"))
@@ -97,52 +102,92 @@ public class SankeyGraphBuilder
         return new SankeyGraph.TransactionFilter(key, includeChildren, false, 0);
     }
 
-    private static List<FlowReport.Value> bundleValues(List<FlowReport.Value> values, double base,
-                                                        double threshold, String otherKey,
-                                                        String otherName, int otherColor)
+    private static List<VisibleValue> bundleValues(List<FlowReport.Value> values, double base,
+                                                    double threshold, String otherKey,
+                                                    String otherName, int otherColor)
     {
         if (threshold <= 0d || base <= 0d)
-            return values;
-        List<FlowReport.Value> result = new ArrayList<>();
+            return values.stream().map(VisibleValue::from).toList();
+        List<VisibleValue> result = new ArrayList<>();
+        List<SankeyGraph.CategoryRule> otherRules = new ArrayList<>();
         double other = 0d;
         for (FlowReport.Value value : values)
         {
             if (!isUnassigned(value.key()) && value.amount() / base < threshold)
+            {
                 other += value.amount();
+                otherRules.add(new SankeyGraph.CategoryRule(value.key(), value.includeChildren()));
+            }
             else
-                result.add(value);
+                result.add(VisibleValue.from(value));
         }
         if (other > 0d)
-            result.add(new FlowReport.Value(otherKey, otherName, other, otherColor));
-        result.sort(Comparator.comparingDouble(FlowReport.Value::amount).reversed()
-            .thenComparing(FlowReport.Value::name));
+            result.add(new VisibleValue(otherKey, otherName, other, otherColor, false, otherRules));
+        result.sort(Comparator.comparingDouble(VisibleValue::amount).reversed()
+            .thenComparing(VisibleValue::name));
         return result;
     }
 
-    private static List<FlowReport.ExpenseGroup> bundleGroups(List<FlowReport.ExpenseGroup> groups,
-                                                               double base, double threshold)
+    private static List<VisibleExpenseGroup> bundleGroups(List<FlowReport.ExpenseGroup> groups,
+                                                           double base, double threshold)
     {
         if (threshold <= 0d || base <= 0d)
-            return groups;
-        List<FlowReport.ExpenseGroup> result = new ArrayList<>();
+            return groups.stream().map(VisibleExpenseGroup::from).toList();
+        List<VisibleExpenseGroup> result = new ArrayList<>();
+        List<SankeyGraph.CategoryRule> otherRules = new ArrayList<>();
         double other = 0d;
         for (FlowReport.ExpenseGroup group : groups)
         {
             if (!isUnassigned(group.key()) && group.amount() / base < threshold)
+            {
                 other += group.amount();
+                otherRules.add(new SankeyGraph.CategoryRule(group.key(), true));
+            }
             else
-                result.add(group);
+                result.add(VisibleExpenseGroup.from(group));
         }
         if (other > 0d)
-            result.add(new FlowReport.ExpenseGroup("__other__", "Sonstige Ausgaben", other,
-                OTHER_COLOR, List.of()));
-        result.sort(Comparator.comparingDouble(FlowReport.ExpenseGroup::amount).reversed()
-            .thenComparing(FlowReport.ExpenseGroup::name));
+            result.add(new VisibleExpenseGroup("__other__", "Sonstige Ausgaben", other,
+                OTHER_COLOR, List.of(), otherRules));
+        result.sort(Comparator.comparingDouble(VisibleExpenseGroup::amount).reversed()
+            .thenComparing(VisibleExpenseGroup::name));
         return result;
     }
 
     private static boolean isUnassigned(String key)
     {
         return key != null && key.startsWith("__unassigned_");
+    }
+
+    private record VisibleValue(String key, String name, double amount, int color, boolean includeChildren,
+                                List<SankeyGraph.CategoryRule> categoryRules)
+    {
+        private VisibleValue
+        {
+            categoryRules = categoryRules == null ? List.of() : List.copyOf(categoryRules);
+        }
+
+        private static VisibleValue from(FlowReport.Value value)
+        {
+            return new VisibleValue(value.key(), value.name(), value.amount(), value.color(),
+                value.includeChildren(), List.of());
+        }
+    }
+
+    private record VisibleExpenseGroup(String key, String name, double amount, int color,
+                                       List<FlowReport.Value> children,
+                                       List<SankeyGraph.CategoryRule> categoryRules)
+    {
+        private VisibleExpenseGroup
+        {
+            children = children == null ? List.of() : List.copyOf(children);
+            categoryRules = categoryRules == null ? List.of() : List.copyOf(categoryRules);
+        }
+
+        private static VisibleExpenseGroup from(FlowReport.ExpenseGroup group)
+        {
+            return new VisibleExpenseGroup(group.key(), group.name(), group.amount(), group.color(),
+                group.children(), List.of());
+        }
     }
 }

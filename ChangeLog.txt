@@ -1,0 +1,2 @@
+
+dialoge.text für lange Texte

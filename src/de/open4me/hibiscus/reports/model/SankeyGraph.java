@@ -17,12 +17,27 @@ public record SankeyGraph(List<Node> nodes, List<Link> links, int monthCount,
     }
 
     public record TransactionFilter(String categoryId, boolean includeChildren, boolean unassigned,
-                                    int sign)
+                                    int sign, List<CategoryRule> categoryRules)
     {
+        public TransactionFilter(String categoryId, boolean includeChildren, boolean unassigned,
+                                 int sign)
+        {
+            this(categoryId, includeChildren, unassigned, sign, List.of());
+        }
+
+        public TransactionFilter
+        {
+            categoryRules = categoryRules == null ? List.of() : List.copyOf(categoryRules);
+        }
+
         public boolean canOpen()
         {
-            return unassigned || (categoryId != null && !categoryId.isBlank());
+            return unassigned || (categoryId != null && !categoryId.isBlank()) || !categoryRules.isEmpty();
         }
+    }
+
+    public record CategoryRule(String categoryId, boolean includeChildren)
+    {
     }
 
     public record Link(String sourceId, String targetId, double amount)

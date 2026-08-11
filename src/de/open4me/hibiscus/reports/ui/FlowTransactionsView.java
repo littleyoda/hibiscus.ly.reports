@@ -109,22 +109,40 @@ public class FlowTransactionsView extends AbstractView
             return true;
         if (!filter.canOpen())
             return false;
+        if (filter.sign() != 0 && Math.signum(transaction.getBetrag()) != filter.sign())
+            return false;
 
         if (filter.unassigned())
-        {
-            if (transaction.getUmsatzTyp() != null)
-                return false;
-            return filter.sign() == 0 || Math.signum(transaction.getBetrag()) == filter.sign();
-        }
+            return transaction.getUmsatzTyp() == null;
 
         UmsatzTyp category = transaction.getUmsatzTyp();
         if (category == null)
             return false;
 
+        if (!filter.categoryRules().isEmpty())
+            return filter.categoryRules().stream()
+                .anyMatch(rule -> matchesRule(category, rule));
+
         if (!filter.includeChildren())
             return filter.categoryId().equals(category.getID());
 
         return matchesCategoryOrParent(category, filter.categoryId());
+    }
+
+    private static boolean matchesRule(UmsatzTyp category, SankeyGraph.CategoryRule rule)
+    {
+        try
+        {
+            if (!rule.includeChildren())
+                return rule.categoryId().equals(category.getID());
+            return matchesCategoryOrParent(category, rule.categoryId());
+        }
+        catch (Exception e)
+        {
+            Logger.warn("unable to match flow transaction category rule " + rule.categoryId()
+                + ": " + e.getMessage());
+            return false;
+        }
     }
 
     private static boolean hasSkippedReportCategory(UmsatzTyp category) throws Exception
