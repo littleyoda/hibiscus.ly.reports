@@ -69,6 +69,7 @@
     <copy file="plugin.xml" todir="${dist.dir}/${plugin.name}" />
     <copy file="LICENSE" todir="${dist.dir}/${plugin.name}" />
     <copy file="README.md" todir="${dist.dir}/${plugin.name}" />
+    <copy file="ChangeLog.txt" todir="${dist.dir}/${plugin.name}" />
     <copy todir="${dist.dir}/${plugin.name}/lib" failonerror="false">
       <fileset dir="lib" erroronmissingdir="false">
         <include name="**/*.jar" />

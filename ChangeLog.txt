@@ -1,4 +1,77 @@
+	[Feature] Über-Dialog hinzugefügt
+	
 1.2.3 -- 2026-08-11
+        [Feature] dialoge.text fuer lange, scrollbare Texte mit Kopierfunktion
+        [Fix] Sankey: "Umsaetze anzeigen..." funktioniert auch bei "Sonstige"-Elementen
+        [Doc] Bilder und Dokumentation aktualisiert
 
-dialoge.text für lange Texte
-Sankey: "Umsätze Anzeigen..." auch bei "Sonstige"-Elemente
+1.2.2 -- 2026-08-10
+        [Fix] Nashorn-Core 15.7 als Bibliothek ergaenzt
+        [Fix] Tests korrigiert
+        [Doc] Dokumentation aktualisiert
+
+1.2.1 -- 2026-08-08
+        [Fix] Mehrere neue Umsaetze kurz hintereinander korrekt behandeln
+        [Doc] Dokumentation korrigiert
+
+1.2.0 -- 2026-08-08
+        [Feature] Automation: neue Ausloeser fuer Synchronisierung und neue Umsaetze
+        [Feature] MCP: Zugriff auf Kategorien ergaenzt
+
+1.1.2 -- 2026-08-04
+        [Fix] Sankey korrigiert
+
+1.1.1 -- 2026-08-04
+        [Fix] Anpassungen fuer MariaDB
+        [Feature] Sankey: bessere Darstellung und neue Einstellmoeglichkeiten
+
+1.1.0 -- 2026-08-01
+        [Feature] Duplikat-Erkennung ergaenzt
+
+1.0.1 -- 2026-08-01
+        [Feature] Automation: Fehlerstrategie beim Kontoabruf konfigurierbar
+        [Feature] Automatisierungen als Startseiten-Widgets
+        [Doc] README und MCP-Dokumentation aktualisiert
+
+1.0.0 -- 2026-08-01
+        [Feature] Automation fuer Scripts, Ausloeser und geplante Laeufe
+        [Feature] Reports koennen geloescht und umbenannt werden
+        [UI] Navigation von Reports nach Tools verschoben
+        [Fix] Automation: Warnung bei ungespeicherten Aenderungen und Nachholen/Nachfragen korrigiert
+        [Doc] Cron-Erklaerung im Expert-Modus und weitere Dokumentation ergaenzt
+
+0.9.6 -- 2026-07-30
+        [Feature] MCP-Server kann an 0.0.0.0 oder 127.0.0.1 gebunden werden
+
+0.9.5 -- 2026-07-24
+        [Feature] Reports als Startseiten-Widgets bereitgestellt
+
+0.9.1 -- 2026-07-12
+        [Security] MCP-Token wird in einer Wallet gespeichert
+
+0.9.0 -- 2026-07-12
+        [Feature] MCP-Server ergaenzt
+
+0.7.5 -- 2026-07-10
+        [Feature] Report-Templates koennen Daten anderer Plugins verwenden
+
+0.7.3 -- 2026-07-10
+        [UI] Reports werden alphabetisch sortiert
+        [Doc] Dokumentation aktualisiert
+
+0.7.2 -- 2026-07-09
+        [Feature] Offline-Konto-Flag und verschachtelte Report-Navigation ergaenzt
+
+0.7.1 -- 2026-07-09
+        [Feature] Objektbeschreibung fuer Reports ergaenzt
+        [Fix] Zeitformat auf ISO mit Stunden umgestellt
+        [UI] Navigationsbaum wird bei neuen Reports aktualisiert
+
+0.7 -- 2026-07-08
+        [Feature] Report-Engine ergaenzt
+
+0.5.1 -- 2026-07-07
+        [Fix] Sankey-Prozentbasis korrigiert
+
+0.5.0 -- 2026-07-07
+        [Feature] Erste Version
