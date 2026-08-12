@@ -24,6 +24,7 @@
     </fileset>
     <fileset dir="${hibiscus.dir}/lib">
       <include name="swtchart/*.jar" />
+      <include name="obantoo-bin-*.jar" />
     </fileset>
   </path>
 

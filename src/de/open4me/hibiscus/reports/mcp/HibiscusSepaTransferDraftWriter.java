@@ -4,6 +4,8 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.Date;
 
+import de.jost_net.OBanToo.SEPA.IBAN;
+import de.willuhn.jameica.hbci.HBCIProperties;
 import de.willuhn.jameica.hbci.Settings;
 import de.willuhn.jameica.hbci.rmi.AuslandsUeberweisung;
 import de.willuhn.jameica.hbci.rmi.Konto;
@@ -22,11 +24,12 @@ public final class HibiscusSepaTransferDraftWriter implements SepaTransferDraftW
         {
             transfer = Settings.getDBService().createObject(AuslandsUeberweisung.class, null);
             AuslandsUeberweisungTyp type = type(request.type());
+            String recipientBic = normalizeRecipientBic(request.recipientBic(), request.recipientIban());
             transfer.transactionBegin();
             transfer.setKonto(account);
             transfer.setGegenkontoName(request.recipientName());
             transfer.setGegenkontoNummer(request.recipientIban());
-            transfer.setGegenkontoBLZ(request.recipientBic());
+            transfer.setGegenkontoBLZ(recipientBic);
             transfer.setBetrag(request.amount().doubleValue());
             transfer.setZweck(request.purpose());
             transfer.setZweck2(request.purpose2());
@@ -42,7 +45,7 @@ public final class HibiscusSepaTransferDraftWriter implements SepaTransferDraftW
             transfer = null;
 
             return new Result(created.getID(), account.getID(), accountName(account),
-                created.getGegenkontoName(), created.getGegenkontoNummer(), created.getGegenkontoBLZ(),
+                created.getGegenkontoName(), created.getGegenkontoNummer(), recipientBic,
                 request.amount(), request.executionDate(), publicType(type), true);
         }
         catch (Exception e)
@@ -108,6 +111,31 @@ public final class HibiscusSepaTransferDraftWriter implements SepaTransferDraftW
     {
         LocalDate value = date == null ? LocalDate.now() : date;
         return Date.from(value.atStartOfDay(ZoneId.systemDefault()).toInstant());
+    }
+
+    private static String normalizeRecipientBic(String bic, String iban) throws Exception
+    {
+        String value = compact(bic);
+        if (blank(value) || isBankCode(value))
+            return bicFromIban(iban);
+        return HBCIProperties.checkBIC(value.toUpperCase());
+    }
+
+    private static String bicFromIban(String iban) throws Exception
+    {
+        IBAN parsed = HBCIProperties.getIBAN(compact(iban));
+        String bic = parsed == null ? null : compact(parsed.getBIC());
+        return blank(bic) ? null : HBCIProperties.checkBIC(bic.toUpperCase());
+    }
+
+    private static boolean isBankCode(String value)
+    {
+        return value.matches("\\d{8}");
+    }
+
+    private static String compact(String value)
+    {
+        return value == null ? null : value.replaceAll("\\s+", "");
     }
 
     private static boolean blank(String value)
