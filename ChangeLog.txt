@@ -1,3 +1,5 @@
+	[Feature] zahlungen.entwurf: Attribute dialogText hinzugefügt
+
 1.2.4 -- 2026-08-12
 	[Fix] SEPA draft BIC handling
 	[Feature] Über-Dialog hinzugefügt

@@ -35,21 +35,10 @@ public final class AutomationPayments
 
     public Object entwurf(Object value) throws Exception
     {
-        Map<String, Object> map = asMap(value);
-        ReportAccount account = account(map.get("konto"));
-        RequestData data = new RequestData(account, text(map.get("art")), text(map.get("empfaengerName")),
-            text(map.get("iban")), text(map.get("bic")), amount(map.get("betrag")),
-            text(map.get("verwendungszweck")), text(map.get("verwendungszweck2")),
-            list(map.get("weitereVerwendungszwecke")), date(map.get("termin")));
+        RequestData data = requestData(value);
         validate(data);
 
-        String summary = data.art + "\nKonto: " + data.account.getName()
-            + "\nEmpfaenger: " + data.recipientName
-            + "\nIBAN: " + data.iban
-            + "\nBIC: " + data.bic
-            + "\nBetrag: " + data.amount
-            + "\nTermin: " + data.executionDate
-            + "\nZweck: " + data.purpose;
+        String summary = summary(data);
 
         if (context.getTestlauf() || !context.getWriteAllowed())
         {
@@ -65,6 +54,38 @@ public final class AutomationPayments
             data.purpose2, data.additionalPurposes, data.executionDate, null, null, null, data.art));
         log.info("Zahlungsentwurf angelegt: " + result.id());
         return result;
+    }
+
+    static String summary(Object value)
+    {
+        RequestData data = requestData(value);
+        validate(data);
+        return summary(data);
+    }
+
+    private static RequestData requestData(Object value)
+    {
+        Map<String, Object> map = asMap(value);
+        ReportAccount account = account(map.get("konto"));
+        return new RequestData(account, text(map.get("art")), text(map.get("empfaengerName")),
+            text(map.get("iban")), text(map.get("bic")), amount(map.get("betrag")),
+            text(map.get("verwendungszweck")), text(map.get("verwendungszweck2")),
+            list(map.get("weitereVerwendungszwecke")), date(map.get("termin")), dialogText(map));
+    }
+
+    private static String summary(RequestData data)
+    {
+        StringBuilder summary = new StringBuilder(data.art);
+        if (!data.dialogText.isBlank())
+            summary.append("\n\n").append(data.dialogText);
+        summary.append("\n\nKonto: ").append(data.account.getName())
+            .append("\nEmpfaenger: ").append(data.recipientName)
+            .append("\nIBAN: ").append(data.iban)
+            .append("\nBIC: ").append(data.bic)
+            .append("\nBetrag: ").append(data.amount)
+            .append("\nTermin: ").append(data.executionDate)
+            .append("\nZweck: ").append(data.purpose);
+        return summary.toString();
     }
 
     @SuppressWarnings("unchecked")
@@ -125,6 +146,14 @@ public final class AutomationPayments
         return value == null ? "" : value.toString();
     }
 
+    private static String dialogText(Map<String, Object> map)
+    {
+        String value = text(map.get("dialogText"));
+        if (value.isBlank())
+            value = text(map.get("dialogtext"));
+        return value.trim();
+    }
+
     private static void validate(RequestData data)
     {
         if (data.account == null)
@@ -141,7 +170,7 @@ public final class AutomationPayments
 
     private record RequestData(ReportAccount account, String art, String recipientName, String iban, String bic,
                                BigDecimal amount, String purpose, String purpose2, List<String> additionalPurposes,
-                               LocalDate executionDate)
+                               LocalDate executionDate, String dialogText)
     {
         RequestData
         {
@@ -149,6 +178,7 @@ public final class AutomationPayments
             purpose = purpose == null ? "" : purpose;
             purpose2 = purpose2 == null ? "" : purpose2;
             additionalPurposes = additionalPurposes == null ? List.of() : List.copyOf(additionalPurposes);
+            dialogText = dialogText == null ? "" : dialogText;
         }
     }
 }

@@ -493,7 +493,8 @@ zahlungen.entwurf({
   iban: "DE02120300000000202051",
   bic: "BYLADEM1001",
   betrag: 50.00,
-  verwendungszweck: "Beispiel"
+  verwendungszweck: "Beispiel",
+  dialogText: "Bitte vor dem Anlegen pruefen."
 });
 ```
 
@@ -509,6 +510,7 @@ Unterstützte Felder:
 - `verwendungszweck`
 - `verwendungszweck2`
 - `weitereVerwendungszwecke`
+- `dialogText`
 
 Unterstützte Zahlungsarten:
 
@@ -521,8 +523,9 @@ Unterstützte Zahlungsarten:
 - `Echtzeitueberweisung`
 
 Vor dem echten Anlegen zeigt das Plugin eine Bestätigung mit Konto,
-Empfänger, IBAN/BIC, Betrag, Termin, Zweck und Zahlungsart. Bei Abbruch wird
-kein Entwurf angelegt.
+Empfänger, IBAN/BIC, Betrag, Termin, Zweck und Zahlungsart. Mit `dialogText`
+kann oberhalb der Zahlungsdetails ein eigener Hinweistext angezeigt werden.
+Bei Abbruch wird kein Entwurf angelegt.
 
 Im Testlauf wird kein Entwurf angelegt. Der geplante Zahlungsentwurf wird nur
 protokolliert.
