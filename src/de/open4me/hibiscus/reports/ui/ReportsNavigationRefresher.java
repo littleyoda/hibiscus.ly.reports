@@ -41,6 +41,7 @@ final class ReportsNavigationRefresher
             TreeItem automationTreeItem = refreshAutomations(itemLookup);
             if (tree == null && automationTreeItem != null)
                 tree = automationTreeItem.getParent();
+            NavigationTreeFilter.apply();
             if (tree != null && !tree.isDisposed())
                 tree.redraw();
         }
@@ -52,6 +53,7 @@ final class ReportsNavigationRefresher
 
     private static TreeItem refreshReports(Map<String, TreeItem> itemLookup) throws Exception
     {
+        NavigationTreeFilter.restoreForRefresh(ReportsNavigationExtension.REPORTS_ROOT_ID);
         return refreshRoot(itemLookup, ReportsNavigationExtension.REPORTS_ROOT_ID,
             new OpenDynamicReportsViewAction(), root -> {
                 DynamicReportRepository repository = DynamicReportRepository.jameica();
@@ -62,6 +64,7 @@ final class ReportsNavigationRefresher
 
     private static TreeItem refreshAutomations(Map<String, TreeItem> itemLookup) throws Exception
     {
+        NavigationTreeFilter.restoreForRefresh(ReportsNavigationExtension.AUTOMATION_ROOT_ID);
         return refreshRoot(itemLookup, ReportsNavigationExtension.AUTOMATION_ROOT_ID,
             new OpenAutomationViewAction(), root -> ReportsNavigationExtension.addAutomationChildren(root,
                 AutomationService.get().repository().listAutomations()));
