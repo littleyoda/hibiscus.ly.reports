@@ -373,6 +373,28 @@ Längerer, scrollbarer Text mit Kopieren-Button:
 dialoge.text("Neue Umsätze", details);
 ```
 
+HTML-Ausgabe mit Browser-Darstellung und Kopieren-Button:
+
+```javascript
+dialoge.html("Neue Umsätze", "<h1>Neue Umsätze</h1><p>Keine neuen Umsätze.</p>");
+```
+
+HTML-Ausgaben sollten Werte aus Hibiscus-Daten vor dem Einfügen in das HTML
+escapen. Dafür steht `StringEscapeUtils` mit der Methode `escapeHtml4` zur
+Verfügung:
+
+```javascript
+function html(value) {
+  return StringEscapeUtils.escapeHtml4(value == null ? "-" : String(value));
+}
+
+var name = html(umsatz.getKonto().getName());
+dialoge.html("Konto", "<p>" + name + "</p>");
+```
+
+`StringEscapeUtils` ist eine kontrolliert bereitgestellte Script-Hilfsvariable;
+der direkte Zugriff auf Java-Klassen über `Java.type(...)` bleibt gesperrt.
+
 Bestätigung:
 
 ```javascript
@@ -669,6 +691,7 @@ Die Automatisierung nutzt Nashorn aus Jameica:
 Für Cron-Auswertung wird mitgeliefert:
 
 - `lib/cron-utils-9.2.1.jar`
+- `lib/commons-text-1.12.0.jar` für HTML-, XML- und weitere String-Escapes
 
 Der Ant-Build nimmt `lib/**/*.jar` und `jameica/lib/javascript/*.jar` in den
 Classpath auf.

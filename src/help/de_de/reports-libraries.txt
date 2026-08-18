@@ -16,6 +16,7 @@ JSR 305;https://code.google.com/archive/p/jsr-305/;https://www.apache.org/licens
 FindBugs Annotations;https://findbugs.sourceforge.net/;https://www.gnu.org/licenses/lgpl.html;GNU Lesser Public License
 Checker Framework Qualifiers;https://checkerframework.org/;https://opensource.org/license/mit;MIT License
 Apache Commons Lang;https://commons.apache.org/proper/commons-lang/;https://www.apache.org/licenses/LICENSE-2.0;Apache License 2.0
+Apache Commons Text;https://commons.apache.org/proper/commons-text/;https://www.apache.org/licenses/LICENSE-2.0;Apache License 2.0
 Apache Commons Net;https://commons.apache.org/proper/commons-net/;https://www.apache.org/licenses/LICENSE-2.0;Apache License 2.0
 SnakeYAML;https://bitbucket.org/snakeyaml/snakeyaml;https://www.apache.org/licenses/LICENSE-2.0;Apache License 2.0
 SLF4J API;https://www.slf4j.org/;https://www.opensource.org/licenses/mit-license.php;MIT License

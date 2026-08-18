@@ -1,5 +1,6 @@
 	[Feature] zahlungen.entwurf: Attribute dialogText hinzugefügt
 	[UI] Tools-Menüpunkt zum Anpassen des Navigation-Baums ergänzt
+	[Feature] dialoge.html für HTML-Ausgaben
 
 1.2.4 -- 2026-08-12
 	[Fix] SEPA draft BIC handling

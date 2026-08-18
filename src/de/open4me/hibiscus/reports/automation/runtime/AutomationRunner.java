@@ -100,6 +100,7 @@ public final class AutomationRunner
             engine.put("log", log);
             engine.put("kontext", context);
             engine.put("automation", context);
+            engine.put("StringEscapeUtils", new AutomationStringEscapeUtils());
             for (Map.Entry<String, Object> entry : variables.entrySet())
                 engine.put(entry.getKey(), entry.getValue());
 

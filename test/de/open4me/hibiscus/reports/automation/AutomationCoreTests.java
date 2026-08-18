@@ -16,6 +16,7 @@ import de.open4me.hibiscus.reports.automation.runtime.AutomationScheduleSpec;
 import de.open4me.hibiscus.reports.automation.runtime.AutomationScheduleSpec.IntervalUnit;
 import de.open4me.hibiscus.reports.automation.runtime.AutomationScheduleSpec.Type;
 import de.open4me.hibiscus.reports.automation.runtime.AutomationScheduler;
+import de.open4me.hibiscus.reports.automation.runtime.AutomationStringEscapeUtils;
 import de.open4me.hibiscus.reports.data.ReportAccountProvider;
 import de.open4me.hibiscus.reports.data.ReportAccountsProxy;
 import de.open4me.hibiscus.reports.model.ReportAccount;
@@ -46,6 +47,7 @@ public final class AutomationCoreTests
             detectsMissedStartupActions();
             delaysMissedStartupHandling();
             blocksDirectJavaClassAccess();
+            exposesStringEscapeUtils();
         }
         catch (Exception e)
         {
@@ -218,6 +220,16 @@ public final class AutomationCoreTests
         {
             check(expected.getMessage() != null, "sandbox error message");
         }
+    }
+
+    private static void exposesStringEscapeUtils() throws Exception
+    {
+        ScriptEngine engine = new NashornScriptEngineFactory().getScriptEngine(className -> false);
+        engine.put("StringEscapeUtils", new AutomationStringEscapeUtils());
+
+        Object escaped = engine.eval("StringEscapeUtils.escapeHtml4('<test> & \\\"wert\\\"')");
+
+        checkEquals("&lt;test&gt; &amp; &quot;wert&quot;", escaped, "HTML escaping utility is exposed");
     }
 
     private static void check(boolean value, String message)
