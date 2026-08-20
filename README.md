@@ -43,3 +43,7 @@ und einen optionalen lokalen MCP-Server.
 
 Dieses Plugin steht unter der GNU General Public License Version 3. Details
 stehen in [LICENSE](LICENSE).
+
+# Erfahrungen
+## Paypal
+Paypal übermittelt extrem rudimentäre Daten: Die Paypal-Umsätze erhalten nur den Namen des Gegenübers bzw. Händlers. Ein Verwendungszweck oder weitere Detailinformationen fehlen. Zwischensummen werden nicht übermittelt. Den Buchungen ist, wie auch in der PayPal-App, nicht zu entnehmen, wie sie bezahlt wurden (z.B. per Guthaben, Lastschrift, Kreditkarte).
