@@ -19,6 +19,7 @@ final class SankeyGraphBuilderTests
         createsChildFiltersForCollapsedExpenseCategories();
         bundlesSmallFlowsWithoutLosingValue();
         createsFiltersForBundledChildFlows();
+        keepsChildrenAboveParentRelativeThresholdVisible();
         keepsUnassignedFlowsVisibleBelowThreshold();
         leavesEmptyReportsEmpty();
     }
@@ -110,6 +111,26 @@ final class SankeyGraphBuilderTests
         checkNode(graph, "sub:housing:__other__", 15d);
         checkRuleFilter(graph, "sub:housing:__other__", -1,
             rule("garden", true), rule("housing", false));
+        checkConservation(graph);
+    }
+
+    private static void keepsChildrenAboveParentRelativeThresholdVisible()
+    {
+        FlowReport report = new FlowReport(
+            List.of(value("salary", "Gehalt", 1000)),
+            List.of(
+                group("housing", "Wohnen", 100,
+                    value("rent", "Miete", 97),
+                    value("garden", "Garten", 3)),
+                group("food", "Lebensmittel", 900, value("groceries", "Einkäufe", 900))),
+            1);
+        SankeyGraph graph = new SankeyGraphBuilder().build(report, Set.of("housing"), 2d);
+
+        checkNode(graph, "sub:rent", 97d);
+        checkNode(graph, "sub:garden", 3d);
+        FlowAggregatorTests.check(graph.nodes().stream()
+            .noneMatch(node -> node.id().equals("sub:housing:__other__")),
+            "child above parent-relative threshold must not be bundled");
         checkConservation(graph);
     }
 

@@ -65,7 +65,7 @@ public class SankeyGraphBuilder
 
             if (expandable != null && expanded.contains(group.key()))
             {
-                List<VisibleValue> children = bundleValues(group.children(), expenseTotal, threshold,
+                List<VisibleValue> children = bundleValues(group.children(), group.amount(), threshold,
                     group.key() + ":__other__", "Sonstige", OTHER_COLOR);
                 for (VisibleValue child : children)
                 {

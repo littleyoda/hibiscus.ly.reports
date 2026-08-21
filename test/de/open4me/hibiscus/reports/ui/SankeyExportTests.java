@@ -22,6 +22,7 @@ public final class SankeyExportTests
         formatsPercentagesFromNodeBase();
         formatsOptionalDetailParts();
         calculatesSharedLayoutAndPngDimensions();
+        groupsExpandedChildrenByParentFlow();
         exportsSankeyMaticText();
         normalizesSelectedFileExtension();
     }
@@ -99,6 +100,34 @@ public final class SankeyExportTests
             "append selected extension");
     }
 
+    private static void groupsExpandedChildrenByParentFlow()
+    {
+        SankeyGraph graph = new SankeyGraph(List.of(
+            new SankeyGraph.Node("income", "Einkommen", 100d, 100d, 0x239b56, 0, null, null),
+            new SankeyGraph.Node("available", "Verfügbar", 100d, 100d, 0x2ca02c, 1, null, null),
+            new SankeyGraph.Node("top", "Oben", 60d, 100d, 0xe67e22, 2, null, null),
+            new SankeyGraph.Node("bottom", "Unten", 40d, 100d, 0xe67e22, 2, null, null),
+            new SankeyGraph.Node("bottom-a", "Unten A", 20d, 100d, 0xe67e22, 3, null, null),
+            new SankeyGraph.Node("top-a", "Oben A", 30d, 100d, 0xe67e22, 3, null, null),
+            new SankeyGraph.Node("top-b", "Oben B", 30d, 100d, 0xe67e22, 3, null, null),
+            new SankeyGraph.Node("bottom-b", "Unten B", 20d, 100d, 0xe67e22, 3, null, null)),
+            List.of(
+                new SankeyGraph.Link("income", "available", 100d),
+                new SankeyGraph.Link("available", "top", 60d),
+                new SankeyGraph.Link("available", "bottom", 40d),
+                new SankeyGraph.Link("top", "top-a", 30d),
+                new SankeyGraph.Link("top", "top-b", 30d),
+                new SankeyGraph.Link("bottom", "bottom-a", 20d),
+                new SankeyGraph.Link("bottom", "bottom-b", 20d)),
+            1, 100d, 100d);
+        SankeyLayout.Scene scene = SankeyLayout.create(graph, SankeyLayout.preferredHeight(graph));
+
+        check(top(scene, "top-a") < top(scene, "top-b"), "children preserve their parent flow order");
+        check(top(scene, "top-b") < top(scene, "bottom-a"),
+            "children of the upper parent stay above the lower parent block");
+        check(top(scene, "bottom-a") < top(scene, "bottom-b"), "lower children stay grouped");
+    }
+
     private static void exportsSankeyMaticText()
     {
         SankeyGraph graph = new SankeyGraph(List.of(
@@ -168,6 +197,12 @@ public final class SankeyExportTests
             .findFirst()
             .orElseThrow(() -> new AssertionError("missing link " + sourceId + " -> " + targetId))
             .color();
+    }
+
+    private static float top(SankeyLayout.Scene scene, String id)
+    {
+        return scene.nodes().stream().filter(node -> node.node().id().equals(id)).findFirst()
+            .orElseThrow(() -> new AssertionError("missing node " + id)).bounds().y();
     }
 
     private static void check(boolean condition, String message)

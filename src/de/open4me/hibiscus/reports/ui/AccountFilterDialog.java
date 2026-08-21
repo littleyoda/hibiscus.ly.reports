@@ -182,7 +182,7 @@ final class AccountFilterDialog extends AbstractDialog<AccountFilterDialog.Resul
     {
         Composite content = tab(tabs, "Darstellung");
         Label description = new Label(content, SWT.WRAP);
-        description.setText("Kleine Flüsse unterhalb des Mindestanteils werden als „Sonstige“ gebündelt. "
+        description.setText("Kleine Flüsse unterhalb des Mindestanteils werden je Ebene als „Sonstige“ gebündelt. "
             + "Unkategorisierte Einnahmen und Ausgaben bleiben immer als eigene Blöcke sichtbar.");
         description.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
 

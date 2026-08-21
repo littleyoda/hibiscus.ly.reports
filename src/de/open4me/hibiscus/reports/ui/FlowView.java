@@ -83,6 +83,7 @@ public class FlowView extends AbstractView
     public void bind() throws Exception
     {
         GUI.getView().setTitle("Geldfluss");
+        restoreExpandedCategories();
         root = new Composite(getParent(), SWT.NONE);
         root.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
         root.setLayout(new GridLayout(1, false));
@@ -327,6 +328,7 @@ public class FlowView extends AbstractView
             + displayedTo);
         Application.getMessagingFactory().sendMessage(new StatusBarMessage(
             "Umsätze werden geöffnet...", StatusBarMessage.TYPE_INFO));
+        setCurrentObject(new FlowViewState(expanded));
         GUI.startView(FlowTransactionsView.class, new FlowTransactionSelection("Umsätze – " + node.name(),
             displayedFrom, displayedTo, selectedAccountIds(), node.transactionFilter(),
             FlowTransactionSelection.Sign.ALL, true));
@@ -388,6 +390,13 @@ public class FlowView extends AbstractView
         SETTINGS.setAttribute("threshold.tenths", thresholdTenths);
         SETTINGS.setAttribute("show.total", showTotal);
         SETTINGS.setAttribute("show.monthlyAverage", showMonthlyAverage);
+    }
+
+    private void restoreExpandedCategories()
+    {
+        expanded.clear();
+        if (getCurrentObject() instanceof FlowViewState state)
+            expanded.addAll(state.expandedCategories());
     }
 
     private SankeyText.DetailOptions detailOptions()
