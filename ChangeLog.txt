@@ -1,3 +1,5 @@
+1.3.0 -- 2026-08-23
+	[Feature] Sankey: Mehr als zwei Ebenen
 	[Feature] zahlungen.entwurf: Attribute dialogText hinzugefügt
 	[UI] Tools-Menüpunkt zum Anpassen des Navigation-Baums ergänzt
 	[Feature] dialoge.html für HTML-Ausgaben
