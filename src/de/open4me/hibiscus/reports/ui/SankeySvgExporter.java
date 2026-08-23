@@ -24,13 +24,14 @@ public final class SankeySvgExporter
                                 SankeyText.DetailOptions detailOptions)
     {
         int chartHeight = SankeyLayout.preferredHeight(graph);
+        int chartWidth = SankeyLayout.preferredWidth(graph);
         int height = HEADER_HEIGHT + chartHeight;
         SankeyLayout.Scene scene = SankeyLayout.create(graph, chartHeight);
         StringBuilder svg = new StringBuilder(32_768);
         svg.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
         svg.append("<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"")
-            .append(SankeyLayout.WIDTH).append("\" height=\"").append(height)
-            .append("\" viewBox=\"0 0 ").append(SankeyLayout.WIDTH).append(' ').append(height)
+            .append(chartWidth).append("\" height=\"").append(height)
+            .append("\" viewBox=\"0 0 ").append(chartWidth).append(' ').append(height)
             .append("\">\n");
         svg.append("  <rect width=\"100%\" height=\"100%\" fill=\"white\"/>\n");
         svg.append("  <g font-family=\"sans-serif\" fill=\"#222222\">\n");

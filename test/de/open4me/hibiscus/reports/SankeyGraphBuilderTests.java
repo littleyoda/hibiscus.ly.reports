@@ -1,6 +1,5 @@
 package de.open4me.hibiscus.reports;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -14,124 +13,60 @@ final class SankeyGraphBuilderTests
 {
     static void run()
     {
-        createsBalancedSurplusGraph();
-        createsBalancedDeficitGraph();
-        createsChildFiltersForCollapsedExpenseCategories();
-        bundlesSmallFlowsWithoutLosingValue();
-        createsFiltersForBundledChildFlows();
-        keepsChildrenAboveParentRelativeThresholdVisible();
+        createsDeepExpandableExpenseGraph();
+        bundlesSmallFlowsOnTheCurrentLevel();
         keepsUnassignedFlowsVisibleBelowThreshold();
         leavesEmptyReportsEmpty();
     }
 
-    private static void createsBalancedSurplusGraph()
+    private static void createsDeepExpandableExpenseGraph()
     {
-        FlowReport report = report(3000, 2000);
-        SankeyGraph graph = new SankeyGraphBuilder().build(report, Set.of("housing"), 0d);
+        FlowReport.ExpenseNode provider = expense("housing/utility/electricity/provider", "provider", "Anbieter", 700);
+        FlowReport.ExpenseNode electricity = expense("housing/utility/electricity", "electricity", "Strom", 700, provider);
+        FlowReport.ExpenseNode utility = expense("housing/utility", "utility", "Verbrauch", 700, electricity);
+        FlowReport.ExpenseNode direct = expense("housing/__direct__", "housing", "Sonstiges", 100, false);
+        FlowReport.ExpenseNode housing = expense("housing", "housing", "Wohnen", 800, utility, direct);
+        FlowReport report = new FlowReport(List.of(value("salary", "Gehalt", 1000)), List.of(housing), 1);
+        SankeyGraph graph = new SankeyGraphBuilder().build(report,
+            Set.of("housing", "housing/utility", "housing/utility/electricity"), 0d);
 
-        checkNode(graph, "surplus", 1000d);
-        checkNode(graph, "available", 3000d);
-        checkNodeName(graph, "available", "Verfügbare Mittel");
-        checkNode(graph, "sub:rent", 2000d);
-        checkPercentageBase(graph, "expense:housing", 3000d);
-        checkPercentageBase(graph, "surplus", 3000d);
-        checkPercentageBase(graph, "sub:rent", 3000d);
-        checkFilter(graph, "expense:housing", "housing", true, false);
-        checkFilter(graph, "sub:rent", "rent", false, false);
+        checkNode(graph, "expense:housing", 2, true);
+        checkNode(graph, "expense:housing/utility", 3, true);
+        checkNode(graph, "expense:housing/utility/electricity", 4, true);
+        checkNode(graph, "expense:housing/utility/electricity/provider", 5, false);
+        checkFilter(graph, "expense:housing/utility", "utility", true, false);
+        checkFilter(graph, "expense:housing/__direct__", "housing", false, false);
         checkConservation(graph);
     }
 
-    private static void createsChildFiltersForCollapsedExpenseCategories()
+    private static void bundlesSmallFlowsOnTheCurrentLevel()
     {
-        FlowReport report = new FlowReport(
-            List.of(value("salary", "Gehalt", 1000)),
-            List.of(group("housing", "Wohnen", 1000,
-                value("consumption", "Verbrauch", 700, true),
-                value("garden", "Garten", 200, true),
-                value("housing", "Sonstiges", 100, false))),
-            1);
-        SankeyGraph graph = new SankeyGraphBuilder().build(report, Set.of("housing"), 0d);
+        FlowReport.ExpenseNode large = expense("housing/large", "large", "Groß", 97);
+        FlowReport.ExpenseNode small = expense("housing/small", "small", "Klein", 3);
+        FlowReport.ExpenseNode housing = expense("housing", "housing", "Wohnen", 100, large, small);
+        FlowReport.ExpenseNode food = expense("food", "food", "Lebensmittel", 900);
+        FlowReport report = new FlowReport(List.of(value("salary", "Gehalt", 1000)), List.of(housing, food), 1);
+        SankeyGraph graph = new SankeyGraphBuilder().build(report, Set.of("housing"), 4d);
 
-        checkFilter(graph, "sub:consumption", "consumption", true, false);
-        checkFilter(graph, "sub:garden", "garden", true, false);
-        checkFilter(graph, "sub:housing", "housing", false, false);
+        checkNode(graph, "expense:housing/large", 3, false);
+        checkNode(graph, "expense:housing/__other__", 3, false);
+        SankeyGraph.Node other = node(graph, "expense:housing/__other__");
+        FlowAggregatorTests.checkEquals(List.of(new SankeyGraph.CategoryRule("small", false)),
+            other.transactionFilter().categoryRules(), "local other filter");
         checkConservation(graph);
     }
 
-    private static void createsBalancedDeficitGraph()
+    private static void keepsUnassignedFlowsVisibleBelowThreshold()
     {
-        FlowReport report = report(1500, 2000);
-        SankeyGraph graph = new SankeyGraphBuilder().build(report, Set.of(), 0d);
+        FlowReport.ExpenseNode unassigned = expense("__unassigned_expense__", "__unassigned_expense__",
+            "Unkategorisierte Ausgaben", 10);
+        FlowReport report = new FlowReport(List.of(value("salary", "Gehalt", 990),
+            value("__unassigned_income__", "Unkategorisierte Einnahmen", 10)),
+            List.of(expense("housing", "housing", "Wohnen", 950), unassigned), 1);
+        SankeyGraph graph = new SankeyGraphBuilder().build(report, Set.of(), 2d);
 
-        checkNode(graph, "deficit", 500d);
-        checkNode(graph, "available", 2000d);
-        checkNodeName(graph, "available", "Benötigte Mittel");
-        checkPercentageBase(graph, "deficit", 2000d);
-        checkPercentageBase(graph, "expense:housing", 2000d);
-        FlowAggregatorTests.check(graph.links().stream().anyMatch(link ->
-            link.sourceId().equals("deficit") && link.targetId().equals("available") && link.amount() == 500d),
-            "deficit must flow into available funds");
-        checkConservation(graph);
-    }
-
-    private static void bundlesSmallFlowsWithoutLosingValue()
-    {
-        FlowReport report = new FlowReport(
-            List.of(value("salary", "Gehalt", 990), value("bonus", "Bonus", 10)),
-            List.of(
-                group("housing", "Wohnen", 950, value("rent", "Miete", 950)),
-                group("fees", "Gebühren", 10, value("bank", "Bank", 10))),
-            1);
-        SankeyGraph graph = new SankeyGraphBuilder().build(report, Set.of("housing"), 2d);
-
-        checkNode(graph, "income:__other__", 10d);
-        checkNode(graph, "expense:__other__", 10d);
-        checkRuleFilter(graph, "income:__other__", 1, rule("bonus", false));
-        checkRuleFilter(graph, "expense:__other__", -1, rule("fees", true));
-        FlowAggregatorTests.checkEquals(1000d,
-            graph.links().stream().filter(link -> link.targetId().equals("available")).mapToDouble(SankeyGraph.Link::amount).sum(),
-            "bundled income links");
-        FlowAggregatorTests.checkEquals(960d,
-            graph.links().stream().filter(link -> link.sourceId().equals("available") && !link.targetId().equals("surplus"))
-                .mapToDouble(SankeyGraph.Link::amount).sum(), "bundled expense links");
-        checkConservation(graph);
-    }
-
-    private static void createsFiltersForBundledChildFlows()
-    {
-        FlowReport report = new FlowReport(
-            List.of(value("salary", "Gehalt", 1000)),
-            List.of(group("housing", "Wohnen", 715,
-                value("consumption", "Verbrauch", 700, true),
-                value("garden", "Garten", 10, true),
-                value("housing", "Sonstiges", 5, false))),
-            1);
-        SankeyGraph graph = new SankeyGraphBuilder().build(report, Set.of("housing"), 2d);
-
-        checkNode(graph, "sub:housing:__other__", 15d);
-        checkRuleFilter(graph, "sub:housing:__other__", -1,
-            rule("garden", true), rule("housing", false));
-        checkConservation(graph);
-    }
-
-    private static void keepsChildrenAboveParentRelativeThresholdVisible()
-    {
-        FlowReport report = new FlowReport(
-            List.of(value("salary", "Gehalt", 1000)),
-            List.of(
-                group("housing", "Wohnen", 100,
-                    value("rent", "Miete", 97),
-                    value("garden", "Garten", 3)),
-                group("food", "Lebensmittel", 900, value("groceries", "Einkäufe", 900))),
-            1);
-        SankeyGraph graph = new SankeyGraphBuilder().build(report, Set.of("housing"), 2d);
-
-        checkNode(graph, "sub:rent", 97d);
-        checkNode(graph, "sub:garden", 3d);
-        FlowAggregatorTests.check(graph.nodes().stream()
-            .noneMatch(node -> node.id().equals("sub:housing:__other__")),
-            "child above parent-relative threshold must not be bundled");
-        checkConservation(graph);
+        checkFilter(graph, "income:__unassigned_income__", null, false, true);
+        checkFilter(graph, "expense:__unassigned_expense__", null, false, true);
     }
 
     private static void leavesEmptyReportsEmpty()
@@ -141,105 +76,50 @@ final class SankeyGraphBuilderTests
         FlowAggregatorTests.check(graph.links().isEmpty(), "empty report links");
     }
 
-    private static void keepsUnassignedFlowsVisibleBelowThreshold()
-    {
-        FlowReport report = new FlowReport(
-            List.of(value("salary", "Gehalt", 990),
-                value("__unassigned_income__", "Unkategorisierte Einnahmen", 10)),
-            List.of(
-                group("housing", "Wohnen", 950, value("rent", "Miete", 950)),
-                group("__unassigned_expense__", "Unkategorisierte Ausgaben", 10,
-                    value("__unassigned_expense__/diverse", "Diverse", 10))),
-            1);
-        SankeyGraph graph = new SankeyGraphBuilder().build(report, Set.of(), 2d);
-
-        checkNode(graph, "income:__unassigned_income__", 10d);
-        checkNode(graph, "expense:__unassigned_expense__", 10d);
-        checkFilter(graph, "income:__unassigned_income__", null, false, true);
-        checkFilter(graph, "expense:__unassigned_expense__", null, false, true);
-    }
-
-    private static FlowReport report(double income, double expense)
-    {
-        return new FlowReport(List.of(value("salary", "Gehalt", income)),
-            List.of(group("housing", "Wohnen", expense, value("rent", "Miete", expense))), 12);
-    }
-
     private static FlowReport.Value value(String key, String name, double amount)
     {
         return new FlowReport.Value(key, name, amount, 0x123456);
     }
 
-    private static FlowReport.Value value(String key, String name, double amount, boolean includeChildren)
+    private static FlowReport.ExpenseNode expense(String key, String categoryId, String name, double amount,
+                                                  FlowReport.ExpenseNode... children)
     {
-        return new FlowReport.Value(key, name, amount, 0x123456, includeChildren);
+        return expense(key, categoryId, name, amount, children.length > 0, children);
     }
 
-    private static FlowReport.ExpenseGroup group(String key, String name, double amount, FlowReport.Value... values)
+    private static FlowReport.ExpenseNode expense(String key, String categoryId, String name, double amount,
+                                                  boolean includeChildren, FlowReport.ExpenseNode... children)
     {
-        return new FlowReport.ExpenseGroup(key, name, amount, 0x654321, List.of(values));
+        return new FlowReport.ExpenseNode(key, categoryId, name, amount, 0x654321, includeChildren, List.of(children));
     }
 
-    private static void checkNode(SankeyGraph graph, String id, double amount)
+    private static void checkNode(SankeyGraph graph, String id, int layer, boolean expandable)
     {
-        SankeyGraph.Node node = graph.nodes().stream().filter(candidate -> candidate.id().equals(id)).findFirst()
-            .orElseThrow(() -> new AssertionError("missing node " + id));
-        FlowAggregatorTests.checkEquals(amount, node.amount(), "node " + id);
-    }
-
-    private static void checkNodeName(SankeyGraph graph, String id, String name)
-    {
-        SankeyGraph.Node node = graph.nodes().stream().filter(candidate -> candidate.id().equals(id)).findFirst()
-            .orElseThrow(() -> new AssertionError("missing node " + id));
-        FlowAggregatorTests.checkEquals(name, node.name(), "node name " + id);
-    }
-
-    private static void checkPercentageBase(SankeyGraph graph, String id, double percentageBase)
-    {
-        SankeyGraph.Node node = graph.nodes().stream().filter(candidate -> candidate.id().equals(id)).findFirst()
-            .orElseThrow(() -> new AssertionError("missing node " + id));
-        FlowAggregatorTests.checkEquals(percentageBase, node.percentageBase(), "percentage base " + id);
+        SankeyGraph.Node node = node(graph, id);
+        FlowAggregatorTests.checkEquals(layer, node.layer(), "node layer " + id);
+        FlowAggregatorTests.check((node.expandableKey() != null) == expandable, "node expansion " + id);
     }
 
     private static void checkFilter(SankeyGraph graph, String id, String categoryId,
                                     boolean includeChildren, boolean unassigned)
     {
-        SankeyGraph.Node node = graph.nodes().stream().filter(candidate -> candidate.id().equals(id)).findFirst()
-            .orElseThrow(() -> new AssertionError("missing node " + id));
-        SankeyGraph.TransactionFilter filter = node.transactionFilter();
+        SankeyGraph.TransactionFilter filter = node(graph, id).transactionFilter();
         FlowAggregatorTests.check(filter != null && filter.canOpen(), "missing transaction filter " + id);
         FlowAggregatorTests.check(Objects.equals(categoryId, filter.categoryId()), "filter category " + id);
         FlowAggregatorTests.check(filter.includeChildren() == includeChildren, "include children " + id);
         FlowAggregatorTests.check(filter.unassigned() == unassigned, "unassigned " + id);
     }
 
-    private static void checkNoFilter(SankeyGraph graph, String id)
+    private static SankeyGraph.Node node(SankeyGraph graph, String id)
     {
-        SankeyGraph.Node node = graph.nodes().stream().filter(candidate -> candidate.id().equals(id)).findFirst()
+        return graph.nodes().stream().filter(candidate -> candidate.id().equals(id)).findFirst()
             .orElseThrow(() -> new AssertionError("missing node " + id));
-        FlowAggregatorTests.check(node.transactionFilter() == null, "unexpected transaction filter " + id);
-    }
-
-    private static SankeyGraph.CategoryRule rule(String categoryId, boolean includeChildren)
-    {
-        return new SankeyGraph.CategoryRule(categoryId, includeChildren);
-    }
-
-    private static void checkRuleFilter(SankeyGraph graph, String id, int sign,
-                                        SankeyGraph.CategoryRule... rules)
-    {
-        SankeyGraph.Node node = graph.nodes().stream().filter(candidate -> candidate.id().equals(id)).findFirst()
-            .orElseThrow(() -> new AssertionError("missing node " + id));
-        SankeyGraph.TransactionFilter filter = node.transactionFilter();
-        FlowAggregatorTests.check(filter != null && filter.canOpen(), "missing transaction filter " + id);
-        FlowAggregatorTests.checkEquals(sign, filter.sign(), "filter sign " + id);
-        FlowAggregatorTests.checkEquals(List.of(rules), filter.categoryRules(), "filter category rules " + id);
     }
 
     private static void checkConservation(SankeyGraph graph)
     {
-        Map<String, Double> incoming = new HashMap<>();
-        Map<String, Double> outgoing = new HashMap<>();
+        Map<String, Double> incoming = new java.util.HashMap<>();
+        Map<String, Double> outgoing = new java.util.HashMap<>();
         for (SankeyGraph.Link link : graph.links())
         {
             outgoing.merge(link.sourceId(), link.amount(), Double::sum);

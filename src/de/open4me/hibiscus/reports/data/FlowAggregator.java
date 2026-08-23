@@ -29,7 +29,6 @@ public class FlowAggregator
         {
             if (booking.pending())
                 continue;
-
             if (booking.categoryPath().isEmpty())
             {
                 if (booking.amount() > 0d)
@@ -42,84 +41,49 @@ public class FlowAggregator
             List<CategoryInfo> path = booking.categoryPath();
             if (path.stream().anyMatch(CategoryInfo::skipReports))
                 continue;
-
             String key = path.stream().map(CategoryInfo::id).reduce((a, b) -> a + "/" + b).orElse("");
             totals.computeIfAbsent(key, ignored -> new PathTotal(path)).amount += booking.amount();
         }
 
         Map<String, MutableValue> incomes = new LinkedHashMap<>();
-        Map<String, MutableExpense> expenses = new LinkedHashMap<>();
-        for (Map.Entry<String, PathTotal> entry : totals.entrySet())
+        Map<String, MutableExpenseNode> expenses = new LinkedHashMap<>();
+        for (PathTotal total : totals.values())
         {
-            PathTotal total = entry.getValue();
             if (Math.abs(total.amount) < 0.000001d)
                 continue;
-
             List<CategoryInfo> path = total.path;
             CategoryInfo root = path.get(0);
             CategoryInfo leaf = path.get(path.size() - 1);
             if (total.amount > 0)
             {
                 String key = leaf.id();
-                String name = path.size() == 1
-                    ? root.name()
-                    : path.subList(1, path.size()).stream().map(CategoryInfo::name)
-                        .reduce((a, b) -> a + " > " + b).orElse(root.name());
+                String name = path.size() == 1 ? root.name() : path.subList(1, path.size()).stream()
+                    .map(CategoryInfo::name).reduce((a, b) -> a + " > " + b).orElse(root.name());
                 MutableValue value = incomes.computeIfAbsent(key,
                     ignored -> new MutableValue(key, name, color(leaf, DEFAULT_INCOME_COLOR)));
                 value.amount += total.amount;
             }
             else
-            {
-                String rootKey = root.id();
-                MutableExpense group = expenses.computeIfAbsent(rootKey,
-                    ignored -> new MutableExpense(rootKey, root.name(), color(root, DEFAULT_EXPENSE_COLOR)));
-                CategoryInfo childCategory = path.size() == 1 ? null : path.get(1);
-                String childName = childCategory == null ? "Sonstiges" : childCategory.name();
-                String childKey = childCategory == null ? root.id() : childCategory.id();
-                boolean includeChildren = childCategory != null;
-                int childColor = childCategory == null
-                    ? color(leaf, DEFAULT_SUB_EXPENSE_COLOR)
-                    : color(childCategory, DEFAULT_SUB_EXPENSE_COLOR);
-                MutableValue child = group.children.computeIfAbsent(childKey,
-                    ignored -> new MutableValue(childKey, childName, childColor, includeChildren));
-                child.amount += Math.abs(total.amount);
-                child.includeChildren |= includeChildren;
-            }
+                addExpense(expenses, path, Math.abs(total.amount));
         }
 
         if (unassignedIncome > 0d)
         {
-            MutableValue value = new MutableValue("__unassigned_income__",
-                "Unkategorisierte Einnahmen", UNASSIGNED_COLOR);
+            MutableValue value = new MutableValue("__unassigned_income__", "Unkategorisierte Einnahmen", UNASSIGNED_COLOR);
             value.amount = unassignedIncome;
             incomes.put(value.key, value);
         }
         if (unassignedExpense > 0d)
-        {
-            MutableExpense group = new MutableExpense("__unassigned_expense__",
-                "Unkategorisierte Ausgaben", UNASSIGNED_COLOR);
-            MutableValue child = new MutableValue("__unassigned_expense__/diverse",
-                "Diverse", UNASSIGNED_COLOR);
-            child.amount = unassignedExpense;
-            group.children.put(child.key, child);
-            expenses.put(group.key, group);
-        }
+            expenses.put("__unassigned_expense__", MutableExpenseNode.unassigned(unassignedExpense));
 
-        Comparator<FlowReport.Value> byAmount = Comparator.comparingDouble(FlowReport.Value::amount).reversed()
+        Comparator<FlowReport.Value> valueOrder = Comparator.comparingDouble(FlowReport.Value::amount).reversed()
             .thenComparing(FlowReport.Value::name);
-        List<FlowReport.Value> incomeValues = incomes.values().stream().map(MutableValue::freeze).sorted(byAmount).toList();
-        List<FlowReport.ExpenseGroup> expenseGroups = new ArrayList<>();
-        for (MutableExpense group : expenses.values())
-        {
-            List<FlowReport.Value> children = group.children.values().stream()
-                .map(MutableValue::freeze).sorted(byAmount).toList();
-            double amount = children.stream().mapToDouble(FlowReport.Value::amount).sum();
-            expenseGroups.add(new FlowReport.ExpenseGroup(group.key, group.name, amount, group.color, children));
-        }
-        expenseGroups.sort(Comparator.comparingDouble(FlowReport.ExpenseGroup::amount).reversed()
-            .thenComparing(FlowReport.ExpenseGroup::name));
-        return new FlowReport(incomeValues, expenseGroups, monthCount(from, to));
+        Comparator<FlowReport.ExpenseNode> expenseOrder = Comparator.comparingDouble(FlowReport.ExpenseNode::amount)
+            .reversed().thenComparing(FlowReport.ExpenseNode::name);
+        List<FlowReport.Value> incomeValues = incomes.values().stream().map(MutableValue::freeze).sorted(valueOrder).toList();
+        List<FlowReport.ExpenseNode> expenseNodes = expenses.values().stream().map(MutableExpenseNode::freeze)
+            .sorted(expenseOrder).toList();
+        return new FlowReport(incomeValues, expenseNodes, monthCount(from, to));
     }
 
     public static int monthCount(LocalDate from, LocalDate to)
@@ -129,9 +93,25 @@ public class FlowAggregator
         return Math.toIntExact(ChronoUnit.MONTHS.between(YearMonth.from(from), YearMonth.from(to)) + 1);
     }
 
+    private static void addExpense(Map<String, MutableExpenseNode> roots, List<CategoryInfo> path, double amount)
+    {
+        MutableExpenseNode current = roots.computeIfAbsent(path.get(0).id(),
+            ignored -> new MutableExpenseNode(path.get(0), path.get(0).id(), DEFAULT_EXPENSE_COLOR));
+        current.amount += amount;
+        for (int index = 1; index < path.size(); index++)
+        {
+            CategoryInfo category = path.get(index);
+            String key = current.key + "/" + category.id();
+            current = current.children.computeIfAbsent(category.id(),
+                ignored -> new MutableExpenseNode(category, key, DEFAULT_SUB_EXPENSE_COLOR));
+            current.amount += amount;
+        }
+        current.directAmount += amount;
+    }
+
     private static int color(CategoryInfo category, int fallback)
     {
-        return category.color() == null ? fallback : category.color();
+        return category == null || category.color() == null ? fallback : category.color();
     }
 
     private static final class PathTotal
@@ -150,40 +130,63 @@ public class FlowAggregator
         private final String key;
         private final String name;
         private final int color;
-        private boolean includeChildren;
         private double amount;
 
         private MutableValue(String key, String name, int color)
         {
-            this(key, name, color, false);
-        }
-
-        private MutableValue(String key, String name, int color, boolean includeChildren)
-        {
             this.key = key;
             this.name = name;
             this.color = color;
-            this.includeChildren = includeChildren;
         }
 
         private FlowReport.Value freeze()
         {
-            return new FlowReport.Value(key, name, amount, color, includeChildren);
+            return new FlowReport.Value(key, name, amount, color, false);
         }
     }
 
-    private static final class MutableExpense
+    private static final class MutableExpenseNode
     {
+        private final CategoryInfo category;
         private final String key;
-        private final String name;
-        private final int color;
-        private final Map<String, MutableValue> children = new LinkedHashMap<>();
+        private final int fallbackColor;
+        private final Map<String, MutableExpenseNode> children = new LinkedHashMap<>();
+        private double amount;
+        private double directAmount;
 
-        private MutableExpense(String key, String name, int color)
+        private MutableExpenseNode(CategoryInfo category, String key, int fallbackColor)
         {
+            this.category = category;
             this.key = key;
-            this.name = name;
-            this.color = color;
+            this.fallbackColor = fallbackColor;
+        }
+
+        private static MutableExpenseNode unassigned(double amount)
+        {
+            MutableExpenseNode node = new MutableExpenseNode(null, "__unassigned_expense__", UNASSIGNED_COLOR);
+            node.amount = amount;
+            node.directAmount = amount;
+            return node;
+        }
+
+        private FlowReport.ExpenseNode freeze()
+        {
+            Comparator<FlowReport.ExpenseNode> order = Comparator.comparingDouble(FlowReport.ExpenseNode::amount)
+                .reversed().thenComparing(FlowReport.ExpenseNode::name);
+            List<FlowReport.ExpenseNode> frozenChildren = new ArrayList<>();
+            for (MutableExpenseNode child : children.values())
+                frozenChildren.add(child.freeze());
+            if (directAmount > 0d && !children.isEmpty())
+            {
+                frozenChildren.add(new FlowReport.ExpenseNode(key + "/__direct__", category == null ? null : category.id(),
+                    "Sonstiges", directAmount, color(category, fallbackColor), false, List.of()));
+            }
+            frozenChildren.sort(order);
+            String name = category == null ? "Unkategorisierte Ausgaben" : category.name();
+            String categoryId = category == null && key.startsWith("__unassigned_") ? key
+                : category == null ? null : category.id();
+            return new FlowReport.ExpenseNode(key, categoryId, name, amount, color(category, fallbackColor),
+                !frozenChildren.isEmpty(), frozenChildren);
         }
     }
 }

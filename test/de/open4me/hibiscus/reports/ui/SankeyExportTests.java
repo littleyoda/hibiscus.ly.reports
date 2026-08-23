@@ -23,6 +23,8 @@ public final class SankeyExportTests
         formatsOptionalDetailParts();
         calculatesSharedLayoutAndPngDimensions();
         groupsExpandedChildrenByParentFlow();
+        expandsLayoutWidthForDeepExpensePaths();
+        findsNodesThroughTheirLabels();
         exportsSankeyMaticText();
         normalizesSelectedFileExtension();
     }
@@ -83,7 +85,7 @@ public final class SankeyExportTests
         check(scene.links().size() == graph.links().size(), "layout link count");
         checksCategoryLinkColors();
         check(SankeyLayout.preferredHeight(manyNodesGraph()) > 700, "layout reserves category gaps");
-        check(SankeyPngExporter.outputWidth() == SankeyLayout.WIDTH * 2, "PNG 2x width");
+        check(SankeyPngExporter.outputWidth(graph) == SankeyLayout.preferredWidth(graph) * 2, "PNG 2x width");
         check(SankeyPngExporter.outputHeight(graph)
             == (SankeySvgExporter.HEADER_HEIGHT + chartHeight) * 2, "PNG 2x height");
     }
@@ -126,6 +128,38 @@ public final class SankeyExportTests
         check(top(scene, "top-b") < top(scene, "bottom-a"),
             "children of the upper parent stay above the lower parent block");
         check(top(scene, "bottom-a") < top(scene, "bottom-b"), "lower children stay grouped");
+    }
+
+    private static void expandsLayoutWidthForDeepExpensePaths()
+    {
+        SankeyGraph graph = new SankeyGraph(List.of(
+            new SankeyGraph.Node("income", "Einkommen", 100d, 100d, 0x239b56, 0, null, null),
+            new SankeyGraph.Node("available", "Verfügbar", 100d, 100d, 0x2ca02c, 1, null, null),
+            new SankeyGraph.Node("root", "Ausgaben", 100d, 100d, 0xe67e22, 2, "root", null),
+            new SankeyGraph.Node("level-1", "Ebene 1", 100d, 100d, 0xe67e22, 3, "level-1", null),
+            new SankeyGraph.Node("level-2", "Ebene 2", 100d, 100d, 0xe67e22, 4, "level-2", null),
+            new SankeyGraph.Node("level-3", "Ebene 3", 100d, 100d, 0xe67e22, 5, null, null)),
+            List.of(new SankeyGraph.Link("income", "available", 100d),
+                new SankeyGraph.Link("available", "root", 100d), new SankeyGraph.Link("root", "level-1", 100d),
+                new SankeyGraph.Link("level-1", "level-2", 100d), new SankeyGraph.Link("level-2", "level-3", 100d)),
+            1, 100d, 100d);
+        SankeyLayout.Scene scene = SankeyLayout.create(graph, SankeyLayout.preferredHeight(graph));
+
+        check(scene.width() > SankeyLayout.WIDTH, "deep graph widens the layout");
+        check(top(scene, "level-1") == top(scene, "level-2"), "single-child levels stay parent-aligned");
+        check(SankeyPngExporter.outputWidth(graph) == scene.width() * 2, "deep PNG width");
+    }
+
+    private static void findsNodesThroughTheirLabels()
+    {
+        SankeyGraph graph = graph();
+        SankeyLayout.Scene scene = SankeyLayout.create(graph, SankeyLayout.preferredHeight(graph));
+        SankeyLayout.NodePlacement available = scene.nodes().stream()
+            .filter(node -> node.node().id().equals("available")).findFirst().orElseThrow();
+        int labelX = Math.round(available.bounds().x() + available.bounds().width() + 80);
+        int labelY = Math.round(available.bounds().y() + available.bounds().height() / 2f);
+
+        check(SankeyLayout.find(scene, labelX, labelY) == available, "label hit finds the node");
     }
 
     private static void exportsSankeyMaticText()

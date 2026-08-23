@@ -96,7 +96,7 @@ public class SankeyCanvas extends Canvas
     public Point preferredSize()
     {
         double scale = zoomPercent / 100d;
-        return new Point((int) Math.round(SankeyLayout.WIDTH * scale),
+        return new Point((int) Math.round(SankeyLayout.preferredWidth(graph) * scale),
             (int) Math.round(SankeyLayout.preferredHeight(graph) * scale));
     }
 
@@ -159,7 +159,6 @@ public class SankeyCanvas extends Canvas
         int logicalY = (int) Math.floor(y / scale);
         if (scene == null)
             scene = SankeyLayout.create(graph, Math.max(1, (int) Math.round(getClientArea().height / scale)));
-        return scene.nodes().stream().filter(node -> node.bounds().contains(logicalX, logicalY))
-            .findFirst().orElse(null);
+        return SankeyLayout.find(scene, logicalX, logicalY);
     }
 }

@@ -2,7 +2,7 @@ package de.open4me.hibiscus.reports.model;
 
 import java.util.List;
 
-public record FlowReport(List<Value> incomes, List<ExpenseGroup> expenses, int monthCount)
+public record FlowReport(List<Value> incomes, List<ExpenseNode> expenses, int monthCount)
 {
     public FlowReport
     {
@@ -18,7 +18,7 @@ public record FlowReport(List<Value> incomes, List<ExpenseGroup> expenses, int m
 
     public double expenseTotal()
     {
-        return expenses.stream().mapToDouble(ExpenseGroup::amount).sum();
+        return expenses.stream().mapToDouble(ExpenseNode::amount).sum();
     }
 
     public double difference()
@@ -34,9 +34,10 @@ public record FlowReport(List<Value> incomes, List<ExpenseGroup> expenses, int m
         }
     }
 
-    public record ExpenseGroup(String key, String name, double amount, int color, List<Value> children)
+    public record ExpenseNode(String key, String categoryId, String name, double amount, int color,
+                              boolean includeChildren, List<ExpenseNode> children)
     {
-        public ExpenseGroup
+        public ExpenseNode
         {
             children = List.copyOf(children);
         }

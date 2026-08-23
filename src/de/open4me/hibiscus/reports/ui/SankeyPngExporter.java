@@ -31,8 +31,9 @@ final class SankeyPngExporter
                      SankeyText.DetailOptions detailOptions)
     {
         int chartHeight = SankeyLayout.preferredHeight(graph);
+        int chartWidth = SankeyLayout.preferredWidth(graph);
         int logicalHeight = SankeySvgExporter.HEADER_HEIGHT + chartHeight;
-        Image image = new Image(display, SankeyLayout.WIDTH * SCALE, logicalHeight * SCALE);
+        Image image = new Image(display, chartWidth * SCALE, logicalHeight * SCALE);
         try
         {
             GC gc = new GC(image);
@@ -81,9 +82,9 @@ final class SankeyPngExporter
         }
     }
 
-    static int outputWidth()
+    static int outputWidth(SankeyGraph graph)
     {
-        return SankeyLayout.WIDTH * SCALE;
+        return SankeyLayout.preferredWidth(graph) * SCALE;
     }
 
     static int outputHeight(SankeyGraph graph)

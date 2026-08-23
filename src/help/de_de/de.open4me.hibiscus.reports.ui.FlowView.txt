@@ -17,7 +17,8 @@
 
   <p>
     Mit einem Mausklick auf eine Ausgabenkategorie werden deren
-    Unterkategorien ein- oder ausgeklappt. Die Schaltfl&#228;chen unter dem
+    Unterkategorien ein- oder ausgeklappt. Dies ist auf allen vorhandenen
+    Kategorienebenen m&#246;glich. Die Schaltfl&#228;chen unter dem
     Diagramm vergr&#246;&#223;ern oder verkleinern die Darstellung.
   </p>
 
