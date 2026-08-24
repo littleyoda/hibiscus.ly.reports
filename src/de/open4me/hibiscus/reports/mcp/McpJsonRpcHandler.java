@@ -26,12 +26,14 @@ import com.hubspot.jinjava.interpret.TemplateError;
 import de.open4me.hibiscus.reports.api.ReportTemplateContext;
 import de.open4me.hibiscus.reports.data.HibiscusReportCategoryProvider;
 import de.open4me.hibiscus.reports.data.ReportCategoryProvider;
+import de.open4me.hibiscus.reports.data.ReportCategoriesProxy;
 import de.open4me.hibiscus.reports.data.ReportAccountGroupsProxy;
 import de.open4me.hibiscus.reports.data.ReportAccountsProxy;
 import de.open4me.hibiscus.reports.data.ReportTemplateContextFactory;
 import de.open4me.hibiscus.reports.data.ReportTransactionProvider;
 import de.open4me.hibiscus.reports.data.ReportTransactionsProxy;
 import de.open4me.hibiscus.reports.model.CategoryInfo;
+import de.open4me.hibiscus.reports.model.ReportCategory;
 import de.open4me.hibiscus.reports.model.ReportAccount;
 import de.open4me.hibiscus.reports.model.ReportAccountGroup;
 import de.open4me.hibiscus.reports.model.ReportTransaction;
@@ -405,14 +407,11 @@ public final class McpJsonRpcHandler
         ArrayNode array = result.putArray("categories");
         try
         {
-            for (List<CategoryInfo> path : categoryProvider.loadCategoryPaths())
+            for (ReportCategory category : new ReportCategoriesProxy(categoryProvider).getAlle())
             {
-                if (path.isEmpty())
+                if (!includeSkipped && category.isSkipReportsEffective())
                     continue;
-                CategoryInfo category = path.get(path.size() - 1);
-                if (!includeSkipped && path.stream().anyMatch(CategoryInfo::skipReports))
-                    continue;
-                array.add(category(category, path));
+                array.add(category(category));
             }
         }
         catch (Exception e)
@@ -626,27 +625,45 @@ public final class McpJsonRpcHandler
         return node;
     }
 
-    private ObjectNode category(CategoryInfo category, List<CategoryInfo> path)
+    private ObjectNode category(ReportCategory category)
     {
         ObjectNode node = mapper.createObjectNode();
-        node.put("id", category.id());
-        node.put("name", category.name());
-        if (path.size() > 1)
-            node.put("parentId", path.get(path.size() - 2).id());
-        else
-            node.putNull("parentId");
-        node.put("level", Math.max(0, path.size() - 1));
-        node.put("path", path.stream().map(CategoryInfo::name)
-            .reduce((left, right) -> left + " > " + right).orElse(category.name()));
+        node.put("id", category.getId());
+        node.put("name", category.getName());
+        node.put("nummer", category.getNummer());
+        node.put("notiz", category.getNotiz());
+        node.put("suchbegriff", category.getSuchbegriff());
+        node.put("regex", category.isRegex());
+        node.put("typ", category.getTyp());
+        node.put("typCode", category.getTypCode());
+        nullable(node, "kontoId", category.getKontoId());
+        nullable(node, "kontoName", category.getKontoName());
+        nullable(node, "kontoKategorie", category.getKontoKategorie());
+        nullable(node, "parentId", category.getParentId());
+        node.put("level", category.getLevel());
+        node.put("path", category.getPath());
         ArrayNode pathIds = node.putArray("pathIds");
-        path.forEach(item -> pathIds.add(item.id()));
-        if (category.color() == null)
+        category.getPathIds().forEach(pathIds::add);
+        ArrayNode childIds = node.putArray("childIds");
+        category.getChildren().forEach(child -> childIds.add(child.getId()));
+        if (category.getColor() == null)
             node.putNull("color");
         else
-            node.put("color", category.color());
-        node.put("skipReports", category.skipReports());
+            node.put("color", category.getColor());
+        nullable(node, "colorHex", category.getColorHex());
+        node.put("customColor", category.isCustomColor());
+        node.put("skipReports", category.isSkipReports());
+        node.put("skipReportsEffective", category.isSkipReportsEffective());
         node.put("transactionsTool", "hibiscus_transactions_list");
         return node;
+    }
+
+    private static void nullable(ObjectNode node, String name, String value)
+    {
+        if (value == null || value.isBlank())
+            node.putNull(name);
+        else
+            node.put(name, value);
     }
 
     private ObjectNode toolResult(JsonNode structured, String text)

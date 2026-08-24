@@ -166,6 +166,12 @@ public final class McpJsonRpcHandlerTests
         checkEquals("Food > Restaurant", child.path("path").asText(), "category path");
         checkEquals("13", child.path("pathIds").get(0).asText(), "category path root id");
         checkEquals("14", child.path("pathIds").get(1).asText(), "category path leaf id");
+        checkEquals("Nur Restaurant", child.path("notiz").asText(), "category note");
+        checkEquals("restaurant.*", child.path("suchbegriff").asText(), "category pattern");
+        check(child.path("regex").asBoolean(), "category regex flag");
+        checkEquals("ausgabe", child.path("typ").asText(), "category type");
+        checkEquals("#654321", child.path("colorHex").asText(), "category color");
+        check(!child.path("skipReportsEffective").asBoolean(), "effective skip flag");
         checkEquals("hibiscus_transactions_list", child.path("transactionsTool").asText(),
             "category transactions tool");
     }
@@ -553,7 +559,8 @@ public final class McpJsonRpcHandlerTests
             return List.of(
                 List.of(new CategoryInfo("13", "Food", false, 0x123456)),
                 List.of(new CategoryInfo("13", "Food", false, 0x123456),
-                    new CategoryInfo("14", "Restaurant", false, null)),
+                    new CategoryInfo("14", "Restaurant", "20", "Nur Restaurant", "restaurant.*", true,
+                        "ausgabe", 0, null, null, null, false, true, 0x654321)),
                 List.of(new CategoryInfo("99", "Ausgeschlossen", true, null)));
         }
     }

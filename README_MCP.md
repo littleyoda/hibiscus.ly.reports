@@ -171,6 +171,18 @@ Unterstützte Filter:
 
 `from` und `to` verwenden das Format `YYYY-MM-DD`.
 
+## Kategorien laden
+
+`hibiscus_categories_list` liefert alle Umsatzkategorien als flache Liste mit
+Hierarchiepfad, Notiz, Suchbegriff, Regex-Kennzeichen, Kategorieart,
+Konto-/Gruppeneinschränkung, Ignorier-Markierungen und Farbe. Mit
+`includeSkipped: false` werden auch Kategorien ausgeschlossen, die nur wegen
+einer ignorierten Oberkategorie effektiv ignoriert sind.
+
+Notizen und Suchmuster können private Informationen enthalten und werden nur
+an Clients ausgegeben, die bereits Zugriff auf den authentifizierten MCP-Server
+haben.
+
 ## SEPA-Zahlungsentwurf
 
 `hibiscus_sepa_transfer_create` sendet keine Zahlung an die Bank. Es speichert

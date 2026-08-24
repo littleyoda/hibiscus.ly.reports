@@ -85,6 +85,8 @@
       <tr><td><code>kontogruppen</code></td><td>Gruppen der aktiven Konten</td></tr>
       <tr><td><code>kontogruppen.aktive</code></td><td>Gruppen der aktiven Konten</td></tr>
       <tr><td><code>kontogruppen.alle</code></td><td>Gruppen aller Konten</td></tr>
+      <tr><td><code>kategorien</code> / <code>kategorien.alle</code></td><td>Alle Umsatzkategorien</td></tr>
+      <tr><td><code>kategorien.wurzeln</code></td><td>Kategoriebaum ab den Wurzelkategorien</td></tr>
       <tr><td><code>umsaetze</code></td><td>Umsaetze der letzten 90 Tage</td></tr>
       <tr><td><code>umsaetze.alle</code></td><td>Alle Umsaetze</td></tr>
     </tbody>
@@ -228,7 +230,7 @@
 {% endfor %}</code></pre>
 
   <h2>Kategorien</h2>
-  <p><code>umsatz.kategoriePfad</code> enthaelt die Kategorie-Hierarchie. Ein Eintrag besitzt:</p>
+  <p><code>kategorien</code> enthaelt alle Umsatzkategorien in Hierarchiereihenfolge. Eine Kategorie kann mit <code>kategorien.byId(&quot;13&quot;)</code> direkt geladen werden.</p>
   <table>
     <thead>
       <tr><th>Feld</th><th>Bedeutung</th></tr>
@@ -236,16 +238,25 @@
     <tbody>
       <tr><td><code>kategorie.id</code></td><td>Interne Hibiscus-ID</td></tr>
       <tr><td><code>kategorie.name</code></td><td>Name der Kategorie</td></tr>
-      <tr><td><code>kategorie.skipReports</code></td><td><code>true</code>, wenn die Kategorie in Auswertungen ignoriert wird</td></tr>
+      <tr><td><code>kategorie.nummer</code></td><td>Sortiernummer</td></tr>
+      <tr><td><code>kategorie.notiz</code></td><td>Notiz</td></tr>
+      <tr><td><code>kategorie.suchbegriff</code></td><td>Suchmuster fuer die automatische Zuordnung</td></tr>
+      <tr><td><code>kategorie.regex</code></td><td><code>true</code> bei einem regulaeren Ausdruck</td></tr>
+      <tr><td><code>kategorie.typ</code> / <code>typCode</code></td><td>Art der Kategorie</td></tr>
+      <tr><td><code>kategorie.kontoId</code> / <code>kontoName</code> / <code>kontoKategorie</code></td><td>Optionale Konto- oder Gruppeneinschraenkung</td></tr>
+      <tr><td><code>kategorie.skipReports</code></td><td>Eigene Markierung "In Auswertungen ignorieren"</td></tr>
+      <tr><td><code>kategorie.skipReportsEffective</code></td><td>Eigene oder von einer Oberkategorie geerbte Markierung</td></tr>
       <tr><td><code>kategorie.color</code></td><td>Farbe als RGB-Zahl, falls gesetzt</td></tr>
+      <tr><td><code>kategorie.colorHex</code></td><td>Farbe im CSS-Format</td></tr>
+      <tr><td><code>kategorie.parentId</code> / <code>level</code> / <code>path</code> / <code>pathIds</code></td><td>Hierarchieinformationen</td></tr>
+      <tr><td><code>kategorie.children</code></td><td>Direkte Unterkategorien</td></tr>
     </tbody>
   </table>
   <p>Beispiel:</p>
-  <pre><code>{% for umsatz in umsaetze.limit(20) %}
-  {% for kategorie in umsatz.kategoriePfad %}
-    {{ kategorie.name }}{% if not loop.last %} &gt; {% endif %}
-  {% endfor %}
+  <pre><code>{% for kategorie in kategorien %}
+  {{ kategorie.path }}: {{ kategorie.notiz }}
 {% endfor %}</code></pre>
+  <p><code>umsatz.kategoriePfad</code> enthaelt weiterhin die schlanke Kategorie-Hierarchie eines Umsatzes. Vollstaendige Details koennen ueber die jeweilige ID aus <code>kategorien</code> gelesen werden.</p>
 
   <h2>Depotviewer</h2>
   <p>Wenn das Plugin <code>hibiscus.depotviewer</code> installiert ist, steht der Namespace <code>depotviewer</code> zur Verfuegung.</p>

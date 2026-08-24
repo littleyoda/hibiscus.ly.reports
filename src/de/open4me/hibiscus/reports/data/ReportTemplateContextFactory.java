@@ -12,12 +12,21 @@ public final class ReportTemplateContextFactory
 {
     private final ReportAccountProvider accountProvider;
     private final ReportTransactionProvider transactionProvider;
+    private final ReportCategoryProvider categoryProvider;
 
     public ReportTemplateContextFactory(ReportAccountProvider accountProvider,
                                         ReportTransactionProvider transactionProvider)
     {
+        this(accountProvider, transactionProvider, new HibiscusReportCategoryProvider());
+    }
+
+    public ReportTemplateContextFactory(ReportAccountProvider accountProvider,
+                                        ReportTransactionProvider transactionProvider,
+                                        ReportCategoryProvider categoryProvider)
+    {
         this.accountProvider = accountProvider;
         this.transactionProvider = transactionProvider;
+        this.categoryProvider = categoryProvider;
     }
 
     public ReportTemplateContext create(List<String> errors)
@@ -27,6 +36,7 @@ public final class ReportTemplateContextFactory
         objects.put("konten", accounts);
         objects.put("kontogruppen", new ReportAccountGroupsProxy(accounts));
         objects.put("umsaetze", new ReportTransactionsProxy(transactionProvider));
+        objects.put("kategorien", new ReportCategoriesProxy(categoryProvider));
 
         ReportTemplateContext context = new ReportTemplateContext(objects);
         List<Extension> extensions = ExtensionRegistry.getExtensions(context.getExtendableID());

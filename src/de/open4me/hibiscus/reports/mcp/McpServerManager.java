@@ -62,11 +62,12 @@ public final class McpServerManager
     {
         String token = McpSettings.ensureToken();
         HibiscusReportTransactionProvider transactions = new HibiscusReportTransactionProvider();
+        HibiscusReportCategoryProvider categories = new HibiscusReportCategoryProvider();
         ReportTemplateContextFactory contextFactory = new ReportTemplateContextFactory(
-            new HibiscusReportAccountProvider(transactions), transactions);
+            new HibiscusReportAccountProvider(transactions), transactions, categories);
         server = new McpHttpServer(McpSettings.getPort(), McpSettings.bindAddress(),
             McpSettings.isLocalNetworkEnabled(), token,
-            new McpJsonRpcHandler(contextFactory, transactions, new HibiscusReportCategoryProvider()));
+            new McpJsonRpcHandler(contextFactory, transactions, categories));
         server.start();
         Logger.info("reports MCP server started at " + McpSettings.endpoint());
     }

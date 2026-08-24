@@ -13,6 +13,7 @@ import de.open4me.hibiscus.reports.ui.ReportsNavigationExtensionTests;
 import de.open4me.hibiscus.reports.data.HibiscusDataProviderTests;
 import de.open4me.hibiscus.reports.data.BalanceSeriesAggregatorTests;
 import de.open4me.hibiscus.reports.data.DynamicReportTests;
+import de.open4me.hibiscus.reports.data.ReportCategoriesProxyTests;
 import de.open4me.hibiscus.reports.mcp.McpJsonRpcHandlerTests;
 import de.open4me.hibiscus.reports.mcp.McpNetworkSettingsTests;
 import de.open4me.hibiscus.reports.automation.AutomationCoreTests;
@@ -34,6 +35,7 @@ public final class CoreTests
         HibiscusDataProviderTests.run();
         BalanceSeriesAggregatorTests.run();
         DynamicReportTests.run();
+        ReportCategoriesProxyTests.run();
         McpNetworkSettingsTests.run();
         McpJsonRpcHandlerTests.run();
         AutomationCoreTests.run();

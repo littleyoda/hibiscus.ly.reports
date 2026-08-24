@@ -138,6 +138,8 @@ Umsätzen sind das die letzten 90 Tage.
 | `kontogruppen` | Gruppen der aktiven Konten |
 | `kontogruppen.aktive` | Gruppen der aktiven Konten |
 | `kontogruppen.alle` | Gruppen aller Konten |
+| `kategorien` / `kategorien.alle` | Alle Umsatzkategorien |
+| `kategorien.wurzeln` | Wurzelkategorien mit rekursiven Kindern |
 | `umsaetze` | Umsätze der letzten 90 Tage |
 | `umsaetze.alle` | Alle Umsätze |
 
@@ -262,22 +264,41 @@ Kontospezifische Umsätze:
 
 ## Kategorien
 
-`umsatz.kategoriePfad` enthält die Kategorie-Hierarchie. Ein Eintrag besitzt:
+`kategorien` enthält alle Kategorien in Hierarchiereihenfolge. Mit
+`kategorien.wurzeln` kann der Baum rekursiv durchlaufen und mit
+`kategorien.byId("13")` eine Kategorie direkt geladen werden.
 
 | Feld | Bedeutung |
 | --- | --- |
 | `kategorie.id` | Interne Hibiscus-ID |
 | `kategorie.name` | Name der Kategorie |
-| `kategorie.skipReports` | `true`, wenn die Kategorie in Auswertungen ignoriert wird |
+| `kategorie.nummer` | Sortiernummer |
+| `kategorie.notiz` | Notiz |
+| `kategorie.suchbegriff` | Suchmuster für die automatische Zuordnung |
+| `kategorie.regex` | `true`, wenn der Suchbegriff ein regulärer Ausdruck ist |
+| `kategorie.typ` / `kategorie.typCode` | Art als Name und Hibiscus-Zahl |
+| `kategorie.kontoId` / `kontoName` / `kontoKategorie` | Optionale Konto- oder Gruppeneinschränkung |
+| `kategorie.skipReports` | Eigene Markierung „In Auswertungen ignorieren“ |
+| `kategorie.skipReportsEffective` | Eigene oder von einer Oberkategorie geerbte Markierung |
 | `kategorie.color` | Farbe als RGB-Zahl, falls gesetzt |
+| `kategorie.colorHex` | Farbe im CSS-Format `#RRGGBB` |
+| `kategorie.parentId` / `level` / `path` / `pathIds` | Hierarchieinformationen |
+| `kategorie.children` | Direkte Unterkategorien |
 
 Beispiel:
 
 ```jinja
-{% for umsatz in umsaetze.limit(20) %}
-  {% for kategorie in umsatz.kategoriePfad %}
-    {{ kategorie.name }}{% if not loop.last %} > {% endif %}
-  {% endfor %}
+{% for kategorie in kategorien %}
+  {{ kategorie.path }}: {{ kategorie.notiz }}
+{% endfor %}
+```
+
+`umsatz.kategoriePfad` enthält weiterhin die schlanke Kategorie-Hierarchie
+eines Umsatzes. Vollständige Details lassen sich über die ID nachschlagen:
+
+```jinja
+{% for teil in umsatz.kategoriePfad %}
+  {% if loop.last %}{{ kategorien.byId(teil.id).notiz }}{% endif %}
 {% endfor %}
 ```
 

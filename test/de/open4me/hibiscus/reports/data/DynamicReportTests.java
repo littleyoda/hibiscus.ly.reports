@@ -43,6 +43,8 @@ public final class DynamicReportTests
             rendersAccountGroups();
             rendersGlobalAndAccountTransactions();
             rendersCategoryInfoProperties();
+            rendersCategoryCatalog();
+            rendersCategoryTotalsReportWithNotes();
             rendersObjectsFromTemplateContextExtension();
             reportsTemplateContextExtensionErrors();
             rendersExampleReportWithTransactions();
@@ -322,6 +324,51 @@ public final class DynamicReportTests
             check(rendered.html().contains("41:45 Lebenshaltung:false:"), "category root properties");
             check(rendered.html().contains("13:Food:false:1193046;"), "category leaf properties");
         });
+    }
+
+    private static void rendersCategoryCatalog() throws Exception
+    {
+        withTempDirectory("hibiscus-reports-category-catalog", base -> {
+            CategoryInfo root = new CategoryInfo("1", "Ausgaben", "10", "Notiz", "markt", false,
+                "ausgabe", 0, null, null, "Privat", true, true, 0x123456);
+            CategoryInfo child = new CategoryInfo("2", "Food", "20", "Bio", "bio.*", true,
+                "ausgabe", 0, "active", "Aktives Girokonto", null, false, false, null);
+            ReportCategoryProvider categories = () -> List.of(List.of(root), List.of(root, child));
+            DynamicReportRenderer renderer = new DynamicReportRenderer(base, new FakeAccountProvider(),
+                query -> List.of(), categories);
+
+            DynamicReportRenderer.RenderedReport rendered = renderer.render("""
+                {% for kategorie in kategorien %}{{ kategorie.name }}={{ kategorie.notiz }}={{ kategorie.skipReportsEffective }};{% endfor %}
+                ROOTS:{% for kategorie in kategorien.wurzeln %}{{ kategorie.name }}={{ kategorie.children | length }};{% endfor %}
+                LOOKUP:{{ kategorien.byId("2").suchbegriff }}:{{ kategorien.byId("2").colorHex }}
+                """);
+
+            check(rendered.errors().isEmpty(), "category catalog render errors: " + rendered.errors());
+            check(rendered.html().contains("Ausgaben=Notiz=true;Food=Bio=true;"), "catalog metadata rendered");
+            check(rendered.html().contains("ROOTS:Ausgaben=1;"), "catalog roots rendered");
+            check(rendered.html().contains("LOOKUP:bio.*:"), "category lookup rendered");
+        });
+    }
+
+    private static void rendersCategoryTotalsReportWithNotes() throws Exception
+    {
+        Path templatePath = Path.of("reports", "Umsatzkategorien.html");
+        String template = Files.readString(templatePath, StandardCharsets.UTF_8);
+        CategoryInfo root = new CategoryInfo("41", "45 Lebenshaltung", "45", "Laufende Kosten", "", false,
+            "ausgabe", 0, null, null, null, false, false, null);
+        CategoryInfo child = new CategoryInfo("13", "Food", "10", "Lebensmittel", "markt", false,
+            "ausgabe", 0, null, null, null, false, true, 0x123456);
+        ReportCategoryProvider categories = () -> List.of(List.of(root), List.of(root, child));
+        DynamicReportRenderer renderer = new DynamicReportRenderer(templatePath.getParent(),
+            new FakeAccountProvider(new FakeTransactionProvider()), new FakeTransactionProvider(), categories);
+
+        DynamicReportRenderer.RenderedReport rendered = renderer.render(template);
+
+        check(rendered.errors().isEmpty(), "category report render errors: " + rendered.errors());
+        check(rendered.html().contains("<th>Notiz</th>"), "category report note heading");
+        check(rendered.html().contains("Laufende Kosten"), "category report root note");
+        check(rendered.html().contains("Lebensmittel"), "category report child note");
+        check(rendered.html().contains("colspan=\"5\""), "category report empty row width");
     }
 
     private static void rendersObjectsFromTemplateContextExtension() throws Exception

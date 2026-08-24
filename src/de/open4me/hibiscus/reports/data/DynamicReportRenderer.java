@@ -23,8 +23,15 @@ public final class DynamicReportRenderer
     public DynamicReportRenderer(Path baseDirectory, ReportAccountProvider accountProvider,
                                  ReportTransactionProvider transactionProvider)
     {
+        this(baseDirectory, accountProvider, transactionProvider, new HibiscusReportCategoryProvider());
+    }
+
+    public DynamicReportRenderer(Path baseDirectory, ReportAccountProvider accountProvider,
+                                 ReportTransactionProvider transactionProvider,
+                                 ReportCategoryProvider categoryProvider)
+    {
         this.baseDirectory = baseDirectory;
-        this.contextFactory = new ReportTemplateContextFactory(accountProvider, transactionProvider);
+        this.contextFactory = new ReportTemplateContextFactory(accountProvider, transactionProvider, categoryProvider);
     }
 
     public RenderedReport render(String template)
