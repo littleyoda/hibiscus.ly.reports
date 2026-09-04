@@ -369,6 +369,11 @@ public final class DynamicReportTests
         check(rendered.html().contains("Laufende Kosten"), "category report root note");
         check(rendered.html().contains("Lebensmittel"), "category report child note");
         check(rendered.html().contains("colspan=\"5\""), "category report empty row width");
+        check(rendered.html().contains("selected-iban"), "category report IBAN selection source");
+        check(rendered.html().contains("DE001234"), "category report account IBAN");
+        check(rendered.html().contains("DE009876"), "category report includes inactive account metadata");
+        check(rendered.html().contains("https://littleyoda.github.io/"), "category report author link");
+        check(rendered.html().contains("rel=\"noopener noreferrer\""), "category report safe external link");
     }
 
     private static void rendersObjectsFromTemplateContextExtension() throws Exception
@@ -549,7 +554,7 @@ public final class DynamicReportTests
                         "12345678", "DE005678", "Privat",
                         false, ReportTransactionsProxy.forAccount(transactionProvider, "daily")),
                     new ReportAccount("archive", 0d, 0d, null, "Archivkonto", "87654321", "DE009876",
-                        "Archiv", true, ReportTransactionsProxy.forAccount(transactionProvider, "archive")));
+                        "Archiv", false, true, ReportTransactionsProxy.forAccount(transactionProvider, "archive")));
             throw new AssertionError("unexpected account filter: " + filter);
         }
     }

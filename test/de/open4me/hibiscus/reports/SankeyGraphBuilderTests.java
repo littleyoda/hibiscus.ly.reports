@@ -15,6 +15,8 @@ final class SankeyGraphBuilderTests
     {
         createsDeepExpandableExpenseGraph();
         bundlesSmallFlowsOnTheCurrentLevel();
+        excludesFlowsBeforeRecalculatingTheGraph();
+        excludesAllFlowsRepresentedByAnOtherNode();
         keepsUnassignedFlowsVisibleBelowThreshold();
         leavesEmptyReportsEmpty();
     }
@@ -51,8 +53,14 @@ final class SankeyGraphBuilderTests
         checkNode(graph, "expense:housing/large", 3, false);
         checkNode(graph, "expense:housing/__other__", 3, false);
         SankeyGraph.Node other = node(graph, "expense:housing/__other__");
+        FlowAggregatorTests.checkEquals(List.of("expense:housing/small"), other.exclusionKeys(),
+            "local other exclusion keys");
         FlowAggregatorTests.checkEquals(List.of(new SankeyGraph.CategoryRule("small", false)),
             other.transactionFilter().categoryRules(), "local other filter");
+        SankeyGraph filtered = new SankeyGraphBuilder().build(report, Set.of("housing"), 4d,
+            Set.copyOf(other.exclusionKeys()));
+        FlowAggregatorTests.checkEquals(97d, node(filtered, "expense:housing").amount(),
+            "other exclusion adjusts parent");
         checkConservation(graph);
     }
 
@@ -67,6 +75,47 @@ final class SankeyGraphBuilderTests
 
         checkFilter(graph, "income:__unassigned_income__", null, false, true);
         checkFilter(graph, "expense:__unassigned_expense__", null, false, true);
+        FlowAggregatorTests.checkEquals(List.of("income:__unassigned_income__"),
+            node(graph, "income:__unassigned_income__").exclusionKeys(), "unassigned income exclusion key");
+        FlowAggregatorTests.checkEquals(List.of("expense:__unassigned_expense__"),
+            node(graph, "expense:__unassigned_expense__").exclusionKeys(), "unassigned expense exclusion key");
+        SankeyGraph filtered = new SankeyGraphBuilder().build(report, Set.of(), 2d,
+            Set.of("income:__unassigned_income__", "expense:__unassigned_expense__"));
+        FlowAggregatorTests.checkEquals(990d, filtered.incomeTotal(), "filtered unassigned income");
+        FlowAggregatorTests.checkEquals(950d, filtered.expenseTotal(), "filtered unassigned expense");
+    }
+
+    private static void excludesFlowsBeforeRecalculatingTheGraph()
+    {
+        FlowReport.ExpenseNode holiday = expense("leisure/holiday", "holiday", "Urlaub", 70);
+        FlowReport.ExpenseNode books = expense("leisure/books", "books", "Bücher", 30);
+        FlowReport.ExpenseNode leisure = expense("leisure", "leisure", "Freizeit", 100, holiday, books);
+        FlowReport report = new FlowReport(List.of(value("salary", "Gehalt", 100)), List.of(leisure), 1);
+
+        SankeyGraph graph = new SankeyGraphBuilder().build(report, Set.of("leisure"), 0d,
+            Set.of("expense:leisure/holiday"));
+
+        FlowAggregatorTests.checkEquals(30d, graph.expenseTotal(), "filtered expense total");
+        FlowAggregatorTests.checkEquals(30d, node(graph, "expense:leisure").amount(), "filtered parent amount");
+        FlowAggregatorTests.checkEquals(70d, node(graph, "surplus").amount(), "recalculated surplus");
+        FlowAggregatorTests.check(graph.nodes().stream()
+            .noneMatch(candidate -> candidate.id().equals("expense:leisure/holiday")), "hidden child node");
+    }
+
+    private static void excludesAllFlowsRepresentedByAnOtherNode()
+    {
+        FlowReport report = new FlowReport(List.of(value("salary", "Gehalt", 950),
+            value("bonus", "Bonus", 30), value("refund", "Erstattung", 20)), List.of(), 1);
+        SankeyGraph graph = new SankeyGraphBuilder().build(report, Set.of(), 5d);
+        SankeyGraph.Node other = node(graph, "income:__other__");
+
+        FlowAggregatorTests.checkEquals(List.of("income:bonus", "income:refund"), other.exclusionKeys(),
+            "other exclusion keys");
+        SankeyGraph filtered = new SankeyGraphBuilder().build(report, Set.of(), 5d,
+            Set.copyOf(other.exclusionKeys()));
+        FlowAggregatorTests.checkEquals(950d, filtered.incomeTotal(), "filtered bundled income total");
+        FlowAggregatorTests.check(filtered.nodes().stream()
+            .noneMatch(candidate -> candidate.id().equals("income:__other__")), "hidden other node");
     }
 
     private static void leavesEmptyReportsEmpty()

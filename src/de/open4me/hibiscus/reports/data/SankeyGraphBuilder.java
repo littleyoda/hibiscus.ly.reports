@@ -18,23 +18,32 @@ public class SankeyGraphBuilder
 
     public SankeyGraph build(FlowReport report, Set<String> expandedCategories, double thresholdPercent)
     {
+        return build(report, expandedCategories, thresholdPercent, Set.of());
+    }
+
+    public SankeyGraph build(FlowReport report, Set<String> expandedCategories, double thresholdPercent,
+                             Set<String> excludedFlowKeys)
+    {
         Set<String> expanded = expandedCategories == null ? Set.of() : new HashSet<>(expandedCategories);
+        Set<String> excluded = excludedFlowKeys == null ? Set.of() : new HashSet<>(excludedFlowKeys);
+        FlowReport visibleReport = exclude(report, excluded);
         double threshold = Math.max(0d, thresholdPercent) / 100d;
-        double incomeTotal = report.incomeTotal();
-        double expenseTotal = report.expenseTotal();
+        double incomeTotal = visibleReport.incomeTotal();
+        double expenseTotal = visibleReport.expenseTotal();
         double available = Math.max(incomeTotal, expenseTotal);
 
         List<SankeyGraph.Node> nodes = new ArrayList<>();
         List<SankeyGraph.Link> links = new ArrayList<>();
         if (available <= 0d)
-            return new SankeyGraph(nodes, links, report.monthCount(), incomeTotal, expenseTotal);
+            return new SankeyGraph(nodes, links, visibleReport.monthCount(), incomeTotal, expenseTotal);
 
-        for (VisibleValue income : bundleValues(report.incomes(), incomeTotal, threshold,
+        for (VisibleValue income : bundleValues(visibleReport.incomes(), incomeTotal, threshold,
             "__other__", "Sonstige Einnahmen", OTHER_COLOR))
         {
             String id = "income:" + income.key();
             nodes.add(new SankeyGraph.Node(id, income.name(), income.amount(), incomeTotal,
-                income.color(), 0, null, transactionFilter(income.key(), false, 1, income.categoryRules())));
+                income.color(), 0, null, transactionFilter(income.key(), false, 1, income.categoryRules()),
+                income.exclusionKeys()));
             links.add(new SankeyGraph.Link(id, "available", income.amount()));
         }
 
@@ -49,7 +58,7 @@ public class SankeyGraphBuilder
         nodes.add(new SankeyGraph.Node("available", centralName, available, available,
             CENTRAL_COLOR, 1, null, null));
 
-        appendExpenses("available", report.expenses(), expenseTotal, threshold, expanded, 2, available,
+        appendExpenses("available", visibleReport.expenses(), expenseTotal, threshold, expanded, 2, available,
             "__other__", "Sonstige Ausgaben", nodes, links);
 
         double surplus = Math.max(0d, incomeTotal - expenseTotal);
@@ -59,7 +68,7 @@ public class SankeyGraphBuilder
                 SURPLUS_COLOR, 2, null, null));
             links.add(new SankeyGraph.Link("available", "surplus", surplus));
         }
-        return new SankeyGraph(nodes, links, report.monthCount(), incomeTotal, expenseTotal);
+        return new SankeyGraph(nodes, links, visibleReport.monthCount(), incomeTotal, expenseTotal);
     }
 
     private static void appendExpenses(String parentId, List<FlowReport.ExpenseNode> expenses, double base,
@@ -74,7 +83,7 @@ public class SankeyGraphBuilder
             SankeyGraph.TransactionFilter filter = transactionFilter(expense.categoryId(), expense.includeChildren(),
                 -1, expense.categoryRules());
             nodes.add(new SankeyGraph.Node(id, expense.name(), expense.amount(), percentageBase, expense.color(),
-                layer, expandable ? expense.key() : null, filter));
+                layer, expandable ? expense.key() : null, filter, expense.exclusionKeys()));
             links.add(new SankeyGraph.Link(parentId, id, expense.amount()));
             if (expandable && expanded.contains(expense.key()))
                 appendExpenses(id, expense.children(), expense.amount(), threshold, expanded, layer + 1,
@@ -103,6 +112,7 @@ public class SankeyGraphBuilder
             return values.stream().map(VisibleValue::from).toList();
         List<VisibleValue> result = new ArrayList<>();
         List<SankeyGraph.CategoryRule> otherRules = new ArrayList<>();
+        List<String> otherExclusionKeys = new ArrayList<>();
         double other = 0d;
         for (FlowReport.Value value : values)
         {
@@ -110,12 +120,14 @@ public class SankeyGraphBuilder
             {
                 other += value.amount();
                 otherRules.add(new SankeyGraph.CategoryRule(value.key(), value.includeChildren()));
+                otherExclusionKeys.add(incomeKey(value.key()));
             }
             else
                 result.add(VisibleValue.from(value));
         }
         if (other > 0d)
-            result.add(new VisibleValue(otherKey, otherName, other, otherColor, false, otherRules));
+            result.add(new VisibleValue(otherKey, otherName, other, otherColor, false, otherRules,
+                otherExclusionKeys));
         result.sort(Comparator.comparingDouble(VisibleValue::amount).reversed().thenComparing(VisibleValue::name));
         return result;
     }
@@ -127,6 +139,7 @@ public class SankeyGraphBuilder
             return values.stream().map(VisibleExpenseNode::from).toList();
         List<VisibleExpenseNode> result = new ArrayList<>();
         List<SankeyGraph.CategoryRule> otherRules = new ArrayList<>();
+        List<String> otherExclusionKeys = new ArrayList<>();
         double other = 0d;
         for (FlowReport.ExpenseNode value : values)
         {
@@ -134,6 +147,7 @@ public class SankeyGraphBuilder
             {
                 other += value.amount();
                 otherRules.add(new SankeyGraph.CategoryRule(value.categoryId(), value.includeChildren()));
+                otherExclusionKeys.add(expenseKey(value.key()));
             }
             else
             {
@@ -142,7 +156,7 @@ public class SankeyGraphBuilder
         }
         if (other > 0d)
             result.add(new VisibleExpenseNode(otherKey, null, otherName, other, OTHER_COLOR, false,
-                List.of(), otherRules, true));
+                List.of(), otherRules, true, otherExclusionKeys));
         result.sort(Comparator.comparingDouble(VisibleExpenseNode::amount).reversed()
             .thenComparing(VisibleExpenseNode::name));
         return result;
@@ -153,35 +167,89 @@ public class SankeyGraphBuilder
         return key != null && key.startsWith("__unassigned_");
     }
 
+    private static FlowReport exclude(FlowReport report, Set<String> excluded)
+    {
+        if (excluded.isEmpty())
+            return report;
+        List<FlowReport.Value> incomes = report.incomes().stream()
+            .filter(value -> !excluded.contains(incomeKey(value.key())))
+            .toList();
+        List<FlowReport.ExpenseNode> expenses = new ArrayList<>();
+        for (FlowReport.ExpenseNode expense : report.expenses())
+        {
+            FlowReport.ExpenseNode visible = excludeExpense(expense, excluded);
+            if (visible != null)
+                expenses.add(visible);
+        }
+        return new FlowReport(incomes, expenses, report.monthCount());
+    }
+
+    private static FlowReport.ExpenseNode excludeExpense(FlowReport.ExpenseNode expense, Set<String> excluded)
+    {
+        if (excluded.contains(expenseKey(expense.key())))
+            return null;
+        List<FlowReport.ExpenseNode> children = new ArrayList<>();
+        double removed = 0d;
+        for (FlowReport.ExpenseNode child : expense.children())
+        {
+            FlowReport.ExpenseNode visible = excludeExpense(child, excluded);
+            if (visible == null)
+                removed += child.amount();
+            else
+            {
+                removed += child.amount() - visible.amount();
+                children.add(visible);
+            }
+        }
+        double amount = expense.amount() - removed;
+        if (amount <= 0.000001d)
+            return null;
+        return new FlowReport.ExpenseNode(expense.key(), expense.categoryId(), expense.name(), amount,
+            expense.color(), !children.isEmpty(), children);
+    }
+
+    private static String incomeKey(String key)
+    {
+        return "income:" + key;
+    }
+
+    private static String expenseKey(String key)
+    {
+        return "expense:" + key;
+    }
+
     private record VisibleValue(String key, String name, double amount, int color, boolean includeChildren,
-                                List<SankeyGraph.CategoryRule> categoryRules)
+                                List<SankeyGraph.CategoryRule> categoryRules, List<String> exclusionKeys)
     {
         private VisibleValue
         {
             categoryRules = categoryRules == null ? List.of() : List.copyOf(categoryRules);
+            exclusionKeys = exclusionKeys == null ? List.of() : List.copyOf(exclusionKeys);
         }
 
         private static VisibleValue from(FlowReport.Value value)
         {
             return new VisibleValue(value.key(), value.name(), value.amount(), value.color(),
-                value.includeChildren(), List.of());
+                value.includeChildren(), List.of(), List.of(incomeKey(value.key())));
         }
     }
 
     private record VisibleExpenseNode(String key, String categoryId, String name, double amount, int color,
                                       boolean includeChildren, List<FlowReport.ExpenseNode> children,
-                                      List<SankeyGraph.CategoryRule> categoryRules, boolean other)
+                                      List<SankeyGraph.CategoryRule> categoryRules, boolean other,
+                                      List<String> exclusionKeys)
     {
         private VisibleExpenseNode
         {
             children = children == null ? List.of() : List.copyOf(children);
             categoryRules = categoryRules == null ? List.of() : List.copyOf(categoryRules);
+            exclusionKeys = exclusionKeys == null ? List.of() : List.copyOf(exclusionKeys);
         }
 
         private static VisibleExpenseNode from(FlowReport.ExpenseNode value)
         {
             return new VisibleExpenseNode(value.key(), value.categoryId(), value.name(), value.amount(), value.color(),
-                value.includeChildren(), value.children(), List.of(), false);
+                value.includeChildren(), value.children(), List.of(), false, List.of(expenseKey(value.key())));
         }
     }
 }

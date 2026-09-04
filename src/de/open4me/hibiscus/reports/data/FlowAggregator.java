@@ -102,8 +102,9 @@ public class FlowAggregator
         {
             CategoryInfo category = path.get(index);
             String key = current.key + "/" + category.id();
+            int parentColor = color(current.category, current.fallbackColor);
             current = current.children.computeIfAbsent(category.id(),
-                ignored -> new MutableExpenseNode(category, key, DEFAULT_SUB_EXPENSE_COLOR));
+                ignored -> new MutableExpenseNode(category, key, parentColor));
             current.amount += amount;
         }
         current.directAmount += amount;

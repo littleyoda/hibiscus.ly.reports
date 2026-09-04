@@ -8,8 +8,11 @@ und einen optionalen lokalen MCP-Server.
 
 ## Funktionen und Dokumentation
 
-- **Auswertungen und Reports**: Geldfluss, Monatsübersicht, Saldo nach
-  Gruppen sowie eigene HTML-/Jinjava-Reports mit Hibiscus-Daten.
+- **Erweiterung der Auswertungen**: Geldfluss, Monatsübersicht und Saldo nach
+  Gruppen als feste interaktive Hibiscus-Ansichten.
+  Details: [README_EVALUATIONS.md](README_EVALUATIONS.md)
+- **Reports**: eigene HTML-/Jinjava-Reports mit Hibiscus-Daten und
+  dokumentierten Template-Objekten.
   Details: [README_REPORTS.md](README_REPORTS.md)
 - **Automatisierung**: lokale JavaScript-Automationen, manuelle Ausführung,
   Startseiten-Boxen, Testläufe, Zeitsteuerung, Dialoge, `sync` und

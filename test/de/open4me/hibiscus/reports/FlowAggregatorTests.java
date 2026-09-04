@@ -14,6 +14,7 @@ final class FlowAggregatorTests
     {
         aggregatesAndNetsCategoryPaths();
         preservesAllExpenseLevelsAndDirectBookings();
+        inheritsExpenseColorsUnlessAChildDefinesOne();
         filtersPendingAndSkippedAndShowsUnassigned();
         calculatesInclusiveMonthCount();
     }
@@ -80,6 +81,26 @@ final class FlowAggregatorTests
             .filter(group -> group.key().equals("__unassigned_expense__")).findFirst()
             .orElseThrow(() -> new AssertionError("missing unassigned expense group"));
         checkEquals(10d, unassigned.amount(), "unassigned expense amount");
+    }
+
+    private static void inheritsExpenseColorsUnlessAChildDefinesOne()
+    {
+        CategoryInfo leisure = category("47", "47 Freizeit", false, 0x59357c);
+        CategoryInfo holiday = category("471", "Urlaub", false, null);
+        CategoryInfo travel = category("4711", "Reise", false, null);
+        CategoryInfo books = category("472", "Bücher", false, 0x224466);
+        CategoryInfo magazines = category("4721", "Zeitschriften", false, null);
+        FlowReport report = new FlowAggregator().aggregate(List.of(
+            booking(-100, leisure, holiday, travel), booking(-50, leisure, books, magazines)),
+            LocalDate.of(2025, 1, 1), LocalDate.of(2025, 1, 31));
+
+        FlowReport.ExpenseNode root = report.expenses().get(0);
+        FlowReport.ExpenseNode holidayNode = child(root, "47/471");
+        FlowReport.ExpenseNode booksNode = child(root, "47/472");
+        checkEquals(0x59357c, holidayNode.color(), "child inherits root color");
+        checkEquals(0x59357c, child(holidayNode, "47/471/4711").color(), "deep child inherits ancestor color");
+        checkEquals(0x224466, booksNode.color(), "custom child color");
+        checkEquals(0x224466, child(booksNode, "47/472/4721").color(), "deep child inherits custom parent color");
     }
 
     private static void calculatesInclusiveMonthCount()

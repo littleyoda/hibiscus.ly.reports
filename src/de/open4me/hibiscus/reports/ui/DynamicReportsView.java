@@ -98,8 +98,11 @@ public class DynamicReportsView extends AbstractView
         content = new Composite(root, SWT.NONE);
         content.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
         errors = new Text(root, SWT.BORDER | SWT.MULTI | SWT.WRAP | SWT.V_SCROLL | SWT.READ_ONLY);
-        errors.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, false));
-        ((GridData) errors.getLayoutData()).heightHint = 90;
+        GridData errorLayout = new GridData(SWT.FILL, SWT.FILL, true, false);
+        errorLayout.heightHint = 90;
+        errorLayout.exclude = true;
+        errors.setLayoutData(errorLayout);
+        errors.setVisible(false);
 
         DynamicReport reportToSelect = getCurrentObject() instanceof DynamicReport report ? report : null;
         loadReports(reportToSelect);
@@ -567,19 +570,26 @@ public class DynamicReportsView extends AbstractView
 
     private void setErrors(List<String> messages)
     {
-        if (messages == null || messages.isEmpty())
-        {
-            errors.setText("");
-            return;
-        }
-        errors.setText(messages.stream().filter(message -> message != null && !message.isBlank())
-            .collect(Collectors.joining(System.lineSeparator())));
+        String text = messages == null ? "" : messages.stream()
+            .filter(message -> message != null && !message.isBlank())
+            .collect(Collectors.joining(System.lineSeparator()));
+        setErrorText(text);
     }
 
     private void showError(String message, Throwable error)
     {
         Logger.error(message, error);
-        errors.setText(message + ": " + (error.getMessage() == null ? error.getClass().getName() : error.getMessage()));
+        setErrorText(message + ": "
+            + (error.getMessage() == null ? error.getClass().getName() : error.getMessage()));
+    }
+
+    private void setErrorText(String text)
+    {
+        boolean visible = text != null && !text.isBlank();
+        errors.setText(visible ? text : "");
+        errors.setVisible(visible);
+        ((GridData) errors.getLayoutData()).exclude = !visible;
+        root.layout(true, true);
     }
 
     private void updateButtons()

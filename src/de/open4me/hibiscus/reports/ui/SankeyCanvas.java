@@ -1,5 +1,6 @@
 package de.open4me.hibiscus.reports.ui;
 
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 
 import org.eclipse.swt.SWT;
@@ -22,6 +23,10 @@ public class SankeyCanvas extends Canvas
     private SankeyText.DetailOptions detailOptions = SankeyText.DetailOptions.DEFAULT;
     private Consumer<String> categoryToggle = ignored -> { };
     private Consumer<SankeyGraph.Node> transactionOpen = ignored -> { };
+    private Consumer<SankeyGraph.Node> areaHide = ignored -> { };
+    private Runnable hideUndo = () -> { };
+    private Runnable showAll = () -> { };
+    private BooleanSupplier hasHiddenAreas = () -> false;
 
     public SankeyCanvas(Composite parent, int style)
     {
@@ -93,6 +98,15 @@ public class SankeyCanvas extends Canvas
         this.transactionOpen = transactionOpen == null ? ignored -> { } : transactionOpen;
     }
 
+    public void setVisibilityActions(Consumer<SankeyGraph.Node> areaHide, Runnable hideUndo,
+                                     Runnable showAll, BooleanSupplier hasHiddenAreas)
+    {
+        this.areaHide = areaHide == null ? ignored -> { } : areaHide;
+        this.hideUndo = hideUndo == null ? () -> { } : hideUndo;
+        this.showAll = showAll == null ? () -> { } : showAll;
+        this.hasHiddenAreas = hasHiddenAreas == null ? () -> false : hasHiddenAreas;
+    }
+
     public Point preferredSize()
     {
         double scale = zoomPercent / 100d;
@@ -130,14 +144,39 @@ public class SankeyCanvas extends Canvas
 
     private void showContextMenu(MouseEvent event, SankeyLayout.NodePlacement placement)
     {
-        if (placement == null || !canOpenTransactions(placement.node()))
+        SankeyGraph.Node node = placement == null ? null : placement.node();
+        boolean transactions = canOpenTransactions(node);
+        boolean hideable = node != null && !node.exclusionKeys().isEmpty();
+        boolean restore = hasHiddenAreas.getAsBoolean();
+        if (!transactions && !hideable && !restore)
             return;
 
-        SankeyGraph.Node node = placement.node();
         Menu menu = new Menu(this);
-        MenuItem item = new MenuItem(menu, SWT.PUSH);
-        item.setText("Umsätze anzeigen...");
-        item.addListener(SWT.Selection, ignored -> transactionOpen.accept(node));
+        if (transactions)
+        {
+            MenuItem transactionsItem = new MenuItem(menu, SWT.PUSH);
+            transactionsItem.setText("Umsätze anzeigen...");
+            transactionsItem.addListener(SWT.Selection, ignored -> transactionOpen.accept(node));
+        }
+        if (transactions && hideable)
+            new MenuItem(menu, SWT.SEPARATOR);
+        if (hideable)
+        {
+            MenuItem hideItem = new MenuItem(menu, SWT.PUSH);
+            hideItem.setText("Ausblenden");
+            hideItem.addListener(SWT.Selection, ignored -> areaHide.accept(node));
+        }
+        if ((transactions || hideable) && restore)
+            new MenuItem(menu, SWT.SEPARATOR);
+        if (restore)
+        {
+            MenuItem undoItem = new MenuItem(menu, SWT.PUSH);
+            undoItem.setText("Ausblenden rückgängig");
+            undoItem.addListener(SWT.Selection, ignored -> hideUndo.run());
+            MenuItem showAllItem = new MenuItem(menu, SWT.PUSH);
+            showAllItem.setText("Alles einblenden");
+            showAllItem.addListener(SWT.Selection, ignored -> showAll.run());
+        }
         menu.addListener(SWT.Hide, ignored -> getDisplay().asyncExec(() -> {
             if (!menu.isDisposed())
                 menu.dispose();

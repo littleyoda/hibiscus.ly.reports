@@ -4,6 +4,7 @@ import de.open4me.hibiscus.reports.ui.SankeyExportTests;
 import de.open4me.hibiscus.reports.ui.OverviewExportTests;
 import de.open4me.hibiscus.reports.ui.AccountSelectionSettingsTests;
 import de.open4me.hibiscus.reports.ui.FlowViewStateTests;
+import de.open4me.hibiscus.reports.ui.FlowVisibilityStateTests;
 import de.open4me.hibiscus.reports.ui.McpSettingsActionTests;
 import de.open4me.hibiscus.reports.ui.GroupExclusionSettingsTests;
 import de.open4me.hibiscus.reports.ui.BalanceSeriesDetailsTests;
@@ -49,6 +50,7 @@ public final class CoreTests
         McpSettingsActionTests.run();
         AccountSelectionSettingsTests.run();
         FlowViewStateTests.run();
+        FlowVisibilityStateTests.run();
         GroupExclusionSettingsTests.run();
         BalanceSeriesDetailsTests.run();
         AccountBalanceConsistencyTests.run();

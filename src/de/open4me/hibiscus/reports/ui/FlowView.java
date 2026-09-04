@@ -56,6 +56,7 @@ public class FlowView extends AbstractView
     private final HibiscusDataProvider provider = new HibiscusDataProvider();
     private final SankeyGraphBuilder graphBuilder = new SankeyGraphBuilder();
     private final Set<String> expanded = new HashSet<>();
+    private final FlowVisibilityState visibility = new FlowVisibilityState();
     private final AtomicLong loadGeneration = new AtomicLong();
 
     private Composite root;
@@ -107,6 +108,8 @@ public class FlowView extends AbstractView
         canvas = new SankeyCanvas(chartScroller, SWT.NONE);
         canvas.setCategoryToggle(this::toggleCategory);
         canvas.setTransactionOpen(this::openTransactions);
+        canvas.setVisibilityActions(this::hideArea, this::undoHide, this::showAll,
+            visibility::hasExclusions);
         chartScroller.setContent(canvas);
         createZoomControls(root);
 
@@ -278,10 +281,11 @@ public class FlowView extends AbstractView
     {
         if (report == null)
             return;
-        currentGraph = graphBuilder.build(report, expanded, appliedThreshold);
+        currentGraph = graphBuilder.build(report, expanded, appliedThreshold, visibility.excludedKeys());
         canvas.setDetailOptions(detailOptions());
         canvas.setGraph(currentGraph);
         resizeCanvas();
+        updateEmptyStatus();
     }
 
     private void changeZoom(int delta)
@@ -312,6 +316,35 @@ public class FlowView extends AbstractView
         if (!expanded.add(key))
             expanded.remove(key);
         rebuildGraph();
+    }
+
+    private void hideArea(SankeyGraph.Node node)
+    {
+        if (visibility.hide(node))
+            rebuildGraph();
+    }
+
+    private void undoHide()
+    {
+        if (visibility.undo())
+            rebuildGraph();
+    }
+
+    private void showAll()
+    {
+        if (visibility.showAll())
+            rebuildGraph();
+    }
+
+    private void updateEmptyStatus()
+    {
+        boolean reportEmpty = report.incomes().isEmpty() && report.expenses().isEmpty();
+        if (reportEmpty)
+            status.setText("Keine kategorisierten Umsätze im gewählten Zeitraum.");
+        else if (currentGraph.nodes().isEmpty() && visibility.hasExclusions())
+            status.setText("Alle Bereiche sind ausgeblendet. Mit einem Rechtsklick können Sie alle wieder einblenden.");
+        else
+            status.setText("");
     }
 
     private void openTransactions(SankeyGraph.Node node)

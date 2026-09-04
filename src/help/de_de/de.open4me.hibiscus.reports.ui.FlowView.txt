@@ -23,10 +23,21 @@
   </p>
 
   <p>
-    Ein Rechtsklick auf eine Kategorie &#246;ffnet die passenden Ums&#228;tze
-    im gew&#228;hlten Zeitraum und mit den aktuell einbezogenen Konten.
-    Geb&#252;ndelte &quot;Sonstige&quot;-Bl&#246;cke k&#246;nnen nicht direkt ge&#246;ffnet
-    werden, weil sie mehrere Kategorien zusammenfassen.
+    Ein Rechtsklick auf einen Bereich &#246;ffnet ein Men&#252;. Dort k&#246;nnen
+    die passenden Ums&#228;tze angezeigt oder der Bereich vor&#252;bergehend
+    ausgeblendet werden. Ausgeblendete Bereiche werden aus Summen,
+    Prozentwerten und der Berechnung von &#220;berschuss oder Defizit entfernt.
+    <b>Ausblenden r&#252;ckg&#228;ngig</b> stellt den zuletzt ausgeblendeten Bereich
+    wieder her, <b>Alles einblenden</b> stellt alle Bereiche wieder her.
+    Beide Aktionen sind auch mit einem Rechtsklick auf die leere
+    Diagrammfl&#228;che erreichbar.
+  </p>
+
+  <p>
+    Das Ausblenden gilt nur f&#252;r die aktuell ge&#246;ffnete Geldfluss-Ansicht
+    und wird nicht dauerhaft gespeichert. Geb&#252;ndelte
+    &quot;Sonstige&quot;-Bl&#246;cke werden mitsamt allen darin enthaltenen Bereichen
+    als eine gemeinsame Aktion ausgeblendet.
   </p>
 
   <p>

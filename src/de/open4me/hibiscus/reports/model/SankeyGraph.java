@@ -12,8 +12,19 @@ public record SankeyGraph(List<Node> nodes, List<Link> links, int monthCount,
     }
 
     public record Node(String id, String name, double amount, double percentageBase,
-                       int color, int layer, String expandableKey, TransactionFilter transactionFilter)
+                       int color, int layer, String expandableKey, TransactionFilter transactionFilter,
+                       List<String> exclusionKeys)
     {
+        public Node(String id, String name, double amount, double percentageBase, int color, int layer,
+                    String expandableKey, TransactionFilter transactionFilter)
+        {
+            this(id, name, amount, percentageBase, color, layer, expandableKey, transactionFilter, List.of());
+        }
+
+        public Node
+        {
+            exclusionKeys = exclusionKeys == null ? List.of() : List.copyOf(exclusionKeys);
+        }
     }
 
     public record TransactionFilter(String categoryId, boolean includeChildren, boolean unassigned,
