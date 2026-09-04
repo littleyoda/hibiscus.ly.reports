@@ -40,11 +40,6 @@ public class ReportsNavigationExtension implements Extension
         ReportNavigationItem automation = new ReportNavigationItem(parent, "Automatisierung",
             AUTOMATION_ROOT_ID, "folder.png", "folder-open.png",
             new OpenAutomationViewAction(), true);
-        addRootItems(parent, reports, automation);
-    }
-
-    static void addRootItems(Item parent, ReportNavigationItem reports, ReportNavigationItem automation)
-    {
         try
         {
             addReportChildren(reports);
