@@ -17,6 +17,7 @@ import de.open4me.hibiscus.reports.data.DynamicReportTests;
 import de.open4me.hibiscus.reports.data.ReportCategoriesProxyTests;
 import de.open4me.hibiscus.reports.mcp.McpJsonRpcHandlerTests;
 import de.open4me.hibiscus.reports.mcp.McpNetworkSettingsTests;
+import de.open4me.hibiscus.reports.mcp.McpHttpServerTests;
 import de.open4me.hibiscus.reports.automation.AutomationCoreTests;
 import de.open4me.hibiscus.reports.automation.sql.AutomationSqlDialectTests;
 import de.open4me.hibiscus.reports.automation.runtime.AutomationPaymentsTests;
@@ -38,6 +39,7 @@ public final class CoreTests
         DynamicReportTests.run();
         ReportCategoriesProxyTests.run();
         McpNetworkSettingsTests.run();
+        McpHttpServerTests.run();
         McpJsonRpcHandlerTests.run();
         AutomationCoreTests.run();
         AutomationSqlDialectTests.run();

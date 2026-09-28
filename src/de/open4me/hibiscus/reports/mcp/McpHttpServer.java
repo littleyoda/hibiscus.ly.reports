@@ -13,6 +13,8 @@ import java.util.concurrent.Executors;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 
+import de.willuhn.jameica.system.Application;
+
 final class McpHttpServer
 {
     private final int port;
@@ -38,11 +40,8 @@ final class McpHttpServer
         try
         {
             server = HttpServer.create(new InetSocketAddress(bindAddress, port), 0);
-            executor = Executors.newCachedThreadPool(runnable -> {
-                Thread thread = new Thread(runnable, "hibiscus-reports-mcp");
-                thread.setDaemon(true);
-                return thread;
-            });
+            ClassLoader classLoader = Application.getClassLoader();
+            executor = Executors.newCachedThreadPool(runnable -> createWorker(runnable, classLoader));
             server.setExecutor(executor);
             server.createContext("/mcp", this::handle);
             server.start();
@@ -57,6 +56,15 @@ final class McpHttpServer
             stop();
             throw e;
         }
+    }
+
+    static Thread createWorker(Runnable runnable, ClassLoader classLoader)
+    {
+        Thread thread = new Thread(runnable, "hibiscus-reports-mcp");
+        // The HTTP dispatcher uses the system loader. Sync workers must inherit Jameica's loader.
+        thread.setContextClassLoader(classLoader);
+        thread.setDaemon(true);
+        return thread;
     }
 
     void stop()
