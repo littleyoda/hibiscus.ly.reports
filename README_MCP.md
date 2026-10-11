@@ -156,7 +156,7 @@ den eigenen Benutzer lesbar sein.
 
 ## Konfiguration für globale Nutzung
 
-Für eine globale Nutzung ist es nötig, dass der MCP-Server über den Dienst ngrok global freigegeben wird. Hierzu muss auf https://ngrok.com/ ein kostenfreier Account angelegt werden und unter "Your authtoken" der Token kopiert werden.
+Für eine globale Nutzung ist es nötig, dass der MCP-Server über den Dienst ngrok global freigegeben wird. Hierzu muss auf https://ngrok.com/ ein kostenfreier Account angelegt werden und unter "Your Authtoken" der Token kopiert werden.
 
 
 Die mitgelieferten ngrok-Bibliotheken unterstützen Linux x86-64 und ARM64,
@@ -194,14 +194,14 @@ Passwort anmelden und den angezeigten Client bestätigen.
 ### Claude im Browser
 
 Der MCP-Server kann wie im Artikel '[MCP-Connector in Claude im Browser](https://support.claude.com/en/articles/11175166-get-started-with-custom-connectors-using-remote-mcp)' 
-beschreiben verbunden werden.
+beschrieben verbunden werden.
 
-### ChatGpt
+### ChatGPT
 Der MCP-Server kann folgendermaßen hinzugefügt werden:
  * [Plugins](https://chatgpt.com/plugins)
- * Hinzufügen / Benutzerdefinierten MCP Server hinzufügen 
+ * Hinzufügen / Benutzerdefinierten MCP-Server hinzufügen 
  * Name: hibiscus
- * Beschreibung: MCP Server for Accessing Bank Data via Hibiscus
+ * Beschreibung: MCP-Server für den Zugriff auf Bankdaten über Hibiscus
  * Verbindung: Die im ngrok-Tab angezeigte URL
  * Authentifizierung: OAuth
 
@@ -244,7 +244,7 @@ Rückgabefelder je Konto sind unter anderem:
 - `gruppe`
 - `backendClass`
 - `saldo`
-- `verfuegbar`
+- `verfügbar`
 - `aktiv`
 - `offline`
 
