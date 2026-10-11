@@ -13,6 +13,8 @@ public final class McpSettings
 
     private static final String LEGACY_TOKEN = "token";
     private static final String WALLET_TOKEN = "mcp.token";
+    private static final String WALLET_NGROK_TOKEN = "mcp.ngrok.authtoken";
+    private static final String WALLET_OAUTH_STATE = "mcp.oauth.state";
     private static final String LOCAL_NETWORK_ENABLED = "localNetworkEnabled";
     private static final Settings SETTINGS = new Settings(McpSettings.class);
     private static final SecureRandom RANDOM = new SecureRandom();
@@ -66,7 +68,8 @@ public final class McpSettings
     {
         try
         {
-            String token = (String) wallet().get(WALLET_TOKEN);
+            Wallet wallet = wallet();
+            String token = (String) wallet.get(WALLET_TOKEN);
             if (token != null && !token.isBlank())
                 return token;
 
@@ -111,12 +114,76 @@ public final class McpSettings
         return McpNetworkBinding.endpoint(port, localNetworkEnabled);
     }
 
-    public static String regenerateToken()
+    public static String generatePassword()
     {
-        String token = generateToken();
-        setToken(token);
-        clearLegacyToken();
-        return token;
+        return generateToken();
+    }
+
+    public static void setPassword(String password)
+    {
+        if (password == null || password.isBlank())
+            throw new IllegalArgumentException("MCP-Passwort darf nicht leer sein.");
+        try
+        {
+            Wallet wallet = wallet();
+            wallet.set(WALLET_TOKEN, password);
+            wallet.set(WALLET_OAUTH_STATE, "");
+            clearLegacyToken();
+        }
+        catch (Exception e)
+        {
+            throw new IllegalStateException("MCP-Passwort konnte nicht gespeichert werden.", e);
+        }
+    }
+
+    public static String getNgrokAuthtoken()
+    {
+        try
+        {
+            String token = (String) wallet().get(WALLET_NGROK_TOKEN);
+            return token == null ? "" : token;
+        }
+        catch (Exception e)
+        {
+            throw new IllegalStateException("ngrok Authtoken konnte nicht aus dem Jameica-Wallet gelesen werden.", e);
+        }
+    }
+
+    public static void setNgrokAuthtoken(String token)
+    {
+        try
+        {
+            wallet().set(WALLET_NGROK_TOKEN, token == null ? "" : token.trim());
+        }
+        catch (Exception e)
+        {
+            throw new IllegalStateException("ngrok Authtoken konnte nicht im Jameica-Wallet gespeichert werden.", e);
+        }
+    }
+
+    static String getOAuthState()
+    {
+        try
+        {
+            String value = (String) wallet().get(WALLET_OAUTH_STATE);
+            return value == null ? "" : value;
+        }
+        catch (Exception e)
+        {
+            throw new IllegalStateException("OAuth-Daten konnten nicht gelesen werden.", e);
+        }
+    }
+
+    static void setOAuthState(String value)
+    {
+        try
+        {
+            wallet().set(WALLET_OAUTH_STATE, value);
+        }
+        catch (Exception e)
+        {
+            throw new IllegalStateException("OAuth-Daten konnten nicht gespeichert werden.", e);
+        }
     }
 
     private static void setToken(String token)

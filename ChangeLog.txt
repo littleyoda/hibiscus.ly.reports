@@ -1,3 +1,5 @@
+	MCP-Server global durch ngrok-Tunnel nutzbar
+
 1.3.1 -- 2026-09-28
 
 	[UI] Entfernt, da mittlerweile in Jameica implementiert: Anpassung des Navigation-Baums

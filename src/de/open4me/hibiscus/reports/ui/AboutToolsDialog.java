@@ -5,7 +5,10 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.Calendar;
+import java.util.List;
 
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.custom.ScrolledComposite;
@@ -22,6 +25,7 @@ import org.eclipse.swt.widgets.TableItem;
 import org.eclipse.swt.widgets.Text;
 
 import de.open4me.hibiscus.reports.Plugin;
+import de.open4me.hibiscus.reports.mcp.McpRequestLog;
 import de.willuhn.jameica.gui.Action;
 import de.willuhn.jameica.gui.dialogs.AbstractDialog;
 import de.willuhn.jameica.gui.parts.ButtonArea;
@@ -48,6 +52,7 @@ final class AboutToolsDialog extends AbstractDialog<Void>
     private static final String DONATION_PURPOSE = "Spende hibiscus.ly.reports";
     private static final int WINDOW_WIDTH = 900;
     private static final int WINDOW_HEIGHT = 650;
+    private static final DateTimeFormatter LOG_TIME = DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm:ss");
 
     AboutToolsDialog()
     {
@@ -65,6 +70,7 @@ final class AboutToolsDialog extends AbstractDialog<Void>
         tabs.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
         addTextTab(tabs, "Änderungen", readChangeLog());
         addLibrariesTab(tabs);
+        addLogTab(tabs);
         addDonationTab(tabs);
 
         ButtonArea buttons = new ButtonArea();
@@ -109,6 +115,62 @@ final class AboutToolsDialog extends AbstractDialog<Void>
                 value(values, 2)
             });
         }
+    }
+
+    private static void addLogTab(TabFolder tabs)
+    {
+        Composite composite = tabComposite(tabs, "Log");
+        Table table = new Table(composite, SWT.BORDER | SWT.FULL_SELECTION | SWT.V_SCROLL | SWT.H_SCROLL);
+        table.setHeaderVisible(true);
+        table.setLinesVisible(true);
+        table.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
+        addColumn(table, "Zeit", 155);
+        addColumn(table, "Zugriff", 85);
+        addColumn(table, "Methode / Tool", 340);
+        addColumn(table, "Ergebnis", 125);
+        addColumn(table, "Dauer (ms)", 90);
+
+        McpRequestLog log = McpRequestLog.get();
+        long[] shownVersion = { -1 };
+        Runnable refresh = new Runnable()
+        {
+            @Override
+            public void run()
+            {
+                if (table.isDisposed())
+                    return;
+                long version = log.version();
+                if (version != shownVersion[0])
+                {
+                    List<McpRequestLog.Entry> entries = log.snapshot();
+                    table.setRedraw(false);
+                    try
+                    {
+                        table.removeAll();
+                        for (int index = entries.size() - 1; index >= 0; index--)
+                        {
+                            McpRequestLog.Entry entry = entries.get(index);
+                            String result = "HTTP " + entry.httpStatus();
+                            if (!entry.rpcError().isEmpty())
+                                result += " / " + entry.rpcError();
+                            TableItem item = new TableItem(table, SWT.NONE);
+                            item.setText(new String[] {
+                                LOG_TIME.format(entry.time().atZone(ZoneId.systemDefault())),
+                                entry.source(), entry.operation(), result,
+                                Long.toString(entry.durationMillis())
+                            });
+                        }
+                    }
+                    finally
+                    {
+                        table.setRedraw(true);
+                    }
+                    shownVersion[0] = version;
+                }
+                table.getDisplay().timerExec(1_000, this);
+            }
+        };
+        refresh.run();
     }
 
     private void addDonationTab(TabFolder tabs) throws Exception

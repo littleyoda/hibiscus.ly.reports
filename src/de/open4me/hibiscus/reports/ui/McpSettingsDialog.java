@@ -6,9 +6,13 @@ import org.eclipse.swt.dnd.TextTransfer;
 import org.eclipse.swt.dnd.Transfer;
 import org.eclipse.swt.layout.GridData;
 import org.eclipse.swt.layout.GridLayout;
+import org.eclipse.swt.program.Program;
 import org.eclipse.swt.widgets.Button;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Label;
+import org.eclipse.swt.widgets.Link;
+import org.eclipse.swt.widgets.TabFolder;
+import org.eclipse.swt.widgets.TabItem;
 import org.eclipse.swt.widgets.Text;
 
 import de.open4me.hibiscus.reports.mcp.McpServerManager;
@@ -35,13 +39,15 @@ final class McpSettingsDialog extends AbstractDialog<McpSettingsDialog.Result>
     private final CheckboxInput writeEnabled;
     private final CheckboxInput localNetworkEnabled;
     private final TextInput port;
-    private final CheckboxInput regenerateToken;
     private Text endpoint;
-    private Text token;
+    private Text password;
+    private Text ngrokAuthtoken;
+    private Text publicEndpoint;
+    private Label publicStatus;
     private Result result;
 
     record Result(boolean enabled, boolean writeEnabled, boolean localNetworkEnabled, int port,
-                  boolean regenerateToken)
+                  String ngrokAuthtoken, String password)
     {
     }
 
@@ -58,36 +64,36 @@ final class McpSettingsDialog extends AbstractDialog<McpSettingsDialog.Result>
         localNetworkEnabled.setName("Zugriff aus lokalem Netzwerk erlauben");
         port = new TextInput(Integer.toString(McpSettings.getPort()));
         port.setName("Port");
-        regenerateToken = new CheckboxInput(false);
-        regenerateToken.setName("Token beim Speichern neu erzeugen");
     }
 
     @Override
     protected void paint(Composite parent) throws Exception
     {
-        Container container = new SimpleContainer(parent);
-        container.addText(
-            "MCP steht fuer Model Context Protocol. Ein MCP-Server stellt Daten und Werkzeuge fuer "
-                + "lokale KI-Clients wie Codex oder Claude Desktop bereit. Dieser Server bietet die "
-                + "Report-Template-Objekte standardmaessig lesend an. Ueberweisungen anlegen erlaubt "
-                + "nur das lokale Anlegen von Entwuerfen, kein Absenden an die Bank. Der Server bindet "
-                + "standardmaessig nur an 127.0.0.1. Fuer Zugriff aus dem lokalen Netzwerk kann er "
-                + "optional an 0.0.0.0 gebunden werden. Jeder Request muss den angezeigten "
-                + "Bearer-Token enthalten. Wenn der Server bereits laeuft, wird ein Wechsel der "
-                + "Netzwerk-Bindung erst nach einem Neustart von Hibiscus aktiv.",
-            true);
-        container.addInput(enabled);
-        container.addInput(writeEnabled);
-        container.addInput(localNetworkEnabled);
-        container.addInput(port);
-        endpoint = copyRow(container.getComposite(), "Endpoint", McpSettings.endpoint(), "Endpoint kopieren");
-        token = copyRow(container.getComposite(), "Bearer-Token", McpSettings.ensureToken(), "Token kopieren");
+        Container container = new SimpleContainer(parent, true, 2);
+        TabFolder tabs = new TabFolder(container.getComposite(), SWT.NONE);
+        GridData tabsData = new GridData(SWT.FILL, SWT.FILL, true, true);
+        tabsData.horizontalSpan = 2;
+        tabs.setLayoutData(tabsData);
+        createLocalTab(tabs);
+        createGlobalTab(tabs);
+
+        container.addHeadline("Gemeinsames Passwort");
+        container.addText("Lokal und im Netzwerk als Bearer-Token, global auch für OAuth. "
+            + "Ein neues Passwort macht bisherige Bearer-Tokens und OAuth-Anmeldungen ungültig.", true);
+        password = copyRow(container.getComposite(), "Passwort", McpSettings.ensureToken(), "Passwort kopieren");
+        Button regeneratePassword = new Button(container.getComposite(), SWT.PUSH);
+        regeneratePassword.setText("Password neu erzeugen");
+        GridData passwordButtonData = new GridData(SWT.BEGINNING, SWT.CENTER, false, false);
+        passwordButtonData.horizontalSpan = 2;
+        regeneratePassword.setLayoutData(passwordButtonData);
+        regeneratePassword.addListener(SWT.Selection,
+            event -> password.setText(McpSettings.generatePassword()));
+
         if (port.getControl() instanceof Text portText)
             portText.addModifyListener(event -> endpoint.setText(endpointFromInput()));
         if (localNetworkEnabled.getControl() instanceof Button localNetworkButton)
             localNetworkButton.addListener(SWT.Selection, event -> endpoint.setText(endpointFromInput()));
-        container.addInput(regenerateToken);
-        container.addText("Status: " + (McpServerManager.get().isRunning() ? "laeuft" : "gestoppt"), true);
+        refreshStatus();
         container.addSeparator();
 
         ButtonArea buttons = new ButtonArea();
@@ -102,7 +108,8 @@ final class McpSettingsDialog extends AbstractDialog<McpSettingsDialog.Result>
                     if (parsedPort <= 0 || parsedPort > 65535)
                         throw new NumberFormatException("Port ausserhalb des gueltigen Bereichs.");
                     result = new Result((Boolean) enabled.getValue(), (Boolean) writeEnabled.getValue(),
-                        (Boolean) localNetworkEnabled.getValue(), parsedPort, (Boolean) regenerateToken.getValue());
+                        (Boolean) localNetworkEnabled.getValue(), parsedPort,
+                        ngrokAuthtoken.getText().trim(), password.getText());
                     close();
                 }
                 catch (Exception e)
@@ -114,6 +121,81 @@ final class McpSettingsDialog extends AbstractDialog<McpSettingsDialog.Result>
         buttons.addButton(new Cancel());
         container.addButtonArea(buttons);
         getShell().setMinimumSize(getShell().computeSize(WINDOW_WIDTH, SWT.DEFAULT));
+    }
+
+    private void createLocalTab(TabFolder tabs) throws Exception
+    {
+        Container local = new SimpleContainer(tab(tabs, "Freigabe lokal / lokales Netzwerk"), true);
+        local.addText("Der MCP-Server ist zunächst nur auf diesem Rechner erreichbar. "
+            + "Mit der Netzwerkfreigabe können auch Geräte im lokalen Netzwerk zugreifen. "
+            + "Berechtigte Clients können Hibiscus-Daten lesen. Die Option für Überweisungen "
+            + "erlaubt zusätzlich lokale Entwürfe, aber kein Absenden an die Bank. "
+            + "Änderungen der Netzwerk-Bindung werden erst nach einem Hibiscus-Neustart aktiv.", true);
+        local.addInput(enabled);
+        local.addInput(writeEnabled);
+        local.addInput(localNetworkEnabled);
+        local.addInput(port);
+        endpoint = copyRow(local.getComposite(), "Endpoint", McpSettings.endpoint(), "Endpoint kopieren");
+        local.addText("Token-Nutzung: Lokale Clients und Clients im lokalen Netzwerk müssen bei jeder "
+            + "Anfrage den HTTP-Header Authorization: Bearer <Passwort> senden. Das gemeinsame "
+            + "Passwort steht unter den Tabs. OAuth ist für diese Freigabe nicht verfügbar. "
+            + "Im lokalen Netzwerk wird der Token über HTTP unverschlüsselt übertragen; "
+            + "verwende die Netzwerkfreigabe nur in vertrauenswürdigen Netzen.", true);
+        local.addText("Status: " + (McpServerManager.get().isRunning() ? "läuft" : "gestoppt"), true);
+    }
+
+    private void createGlobalTab(TabFolder tabs)
+    {
+        Container global = new SimpleContainer(tab(tabs, "Globale Freigabe"), true);
+        Label warning = new Label(global.getComposite(), SWT.WRAP);
+        warning.setText("Warnung: Wenn der MCP-Server läuft und ein ngrok Authtoken hinterlegt ist, "
+            + "ist der MCP-Endpoint weltweit über das Internet erreichbar. Die öffentliche Adresse "
+            + "ist kein Zugriffsschutz. Wer das gemeinsame Passwort oder einen gültigen OAuth-Zugriffstoken "
+            + "besitzt, kann Hibiscus-Daten abrufen. Ist das Anlegen von Überweisungsentwürfen aktiviert, "
+            + "können berechtigte Clients auch Entwürfe erstellen. Gib Passwort und ngrok Authtoken "
+            + "nur an vertrauenswürdige Personen weiter. Zum Beenden der globalen Freigabe das "
+            + "ngrok Authtoken entfernen.");
+        GridData warningData = new GridData(SWT.FILL, SWT.CENTER, true, false);
+        warningData.horizontalSpan = 2;
+        warningData.widthHint = 640;
+        warning.setLayoutData(warningData);
+
+        Link ngrokLink = new Link(global.getComposite(), SWT.NONE);
+        ngrokLink.setText("<a href=\"https://ngrok.com/\">https://ngrok.com/</a>");
+        GridData ngrokLinkData = new GridData(SWT.BEGINNING, SWT.CENTER, false, false);
+        ngrokLinkData.horizontalSpan = 2;
+        ngrokLink.setLayoutData(ngrokLinkData);
+        ngrokLink.addListener(SWT.Selection, event -> Program.launch(event.text));
+
+        Composite ngrokRow = new Composite(global.getComposite(), SWT.NONE);
+        GridData ngrokData = new GridData(SWT.FILL, SWT.CENTER, true, false);
+        ngrokData.horizontalSpan = 2;
+        ngrokRow.setLayoutData(ngrokData);
+        ngrokRow.setLayout(new GridLayout(2, false));
+        Label ngrokLabel = new Label(ngrokRow, SWT.NONE);
+        ngrokLabel.setText("ngrok Authtoken");
+        ngrokLabel.setLayoutData(new GridData(120, SWT.DEFAULT));
+        ngrokAuthtoken = new Text(ngrokRow, SWT.BORDER | SWT.PASSWORD);
+        ngrokAuthtoken.setText(McpSettings.getNgrokAuthtoken());
+        ngrokAuthtoken.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+        publicEndpoint = copyRow(global.getComposite(), "Oeffentlicher Endpoint",
+            McpServerManager.get().publicEndpoint(), "Oeffentlichen Endpoint kopieren");
+        copyRow(global.getComposite(), "OAuth-Benutzer", "hibiscus-mcp", "Benutzername kopieren");
+        publicStatus = new Label(global.getComposite(), SWT.NONE);
+        publicStatus.setText("ngrok: " + McpServerManager.get().publicStatus());
+        GridData statusData = new GridData(SWT.FILL, SWT.CENTER, true, false);
+        statusData.horizontalSpan = 2;
+        publicStatus.setLayoutData(statusData);
+    }
+
+    private static Composite tab(TabFolder tabs, String title)
+    {
+        TabItem item = new TabItem(tabs, SWT.NONE);
+        item.setText(title);
+        Composite content = new Composite(tabs, SWT.NONE);
+        content.setLayout(new GridLayout(1, false));
+        item.setControl(content);
+        return content;
     }
 
     private Text copyRow(Composite parent, String labelText, String value, String tooltip)
@@ -184,6 +266,22 @@ final class McpSettingsDialog extends AbstractDialog<McpSettingsDialog.Result>
         {
         }
         return McpSettings.endpoint();
+    }
+
+    private void refreshStatus()
+    {
+        if (getShell() == null || getShell().isDisposed())
+            return;
+        String address = McpServerManager.get().publicEndpoint();
+        if (!publicEndpoint.getText().equals(address))
+            publicEndpoint.setText(address);
+        String status = "ngrok: " + McpServerManager.get().publicStatus();
+        if (!publicStatus.getText().equals(status))
+        {
+            publicStatus.setText(status);
+            publicStatus.getParent().layout();
+        }
+        GUI.getDisplay().timerExec(500, this::refreshStatus);
     }
 
     @Override

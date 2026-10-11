@@ -9,32 +9,39 @@ public final class McpSettingsActionTests
     public static void run()
     {
         defersBindingChangeWhileRunning();
-        restartsWhenBindingDoesNotChange();
+        keepsRunningServerForPasswordOnlyChange();
+        restartsWhenPortChanges();
         restartsWhenServerIsStopped();
         restartsWhenDisablingServer();
     }
 
     private static void defersBindingChangeWhileRunning()
     {
-        check(!McpSettingsAction.restartRequired(true, true, false, true, true),
+        check(!McpSettingsAction.restartRequired(true, true, false, 37653, true, true, 37653),
             "running bind address change deferred");
     }
 
-    private static void restartsWhenBindingDoesNotChange()
+    private static void keepsRunningServerForPasswordOnlyChange()
     {
-        check(McpSettingsAction.restartRequired(true, true, false, true, false),
-            "unchanged binding restarts");
+        check(!McpSettingsAction.restartRequired(true, true, false, 37653, true, false, 37653),
+            "password-only save keeps running listener");
+    }
+
+    private static void restartsWhenPortChanges()
+    {
+        check(McpSettingsAction.restartRequired(true, true, false, 37653, true, false, 37654),
+            "port change restarts listener");
     }
 
     private static void restartsWhenServerIsStopped()
     {
-        check(McpSettingsAction.restartRequired(false, true, false, true, true),
+        check(McpSettingsAction.restartRequired(false, true, false, 37653, true, true, 37653),
             "stopped server can start with new binding");
     }
 
     private static void restartsWhenDisablingServer()
     {
-        check(McpSettingsAction.restartRequired(true, true, false, false, true),
+        check(McpSettingsAction.restartRequired(true, true, false, 37653, false, true, 37653),
             "disable stops server");
     }
 

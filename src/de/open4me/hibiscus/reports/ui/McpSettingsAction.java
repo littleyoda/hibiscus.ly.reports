@@ -2,6 +2,7 @@ package de.open4me.hibiscus.reports.ui;
 
 import de.open4me.hibiscus.reports.mcp.McpServerManager;
 import de.open4me.hibiscus.reports.mcp.McpSettings;
+import de.willuhn.logging.Logger;
 import de.willuhn.jameica.gui.Action;
 import de.willuhn.jameica.gui.GUI;
 import de.willuhn.jameica.messaging.StatusBarMessage;
@@ -23,35 +24,43 @@ public final class McpSettingsAction implements Action
             boolean previousWriteEnabled = McpSettings.isWriteEnabled();
             boolean previousLocalNetworkEnabled = McpSettings.isLocalNetworkEnabled();
             int previousPort = McpSettings.getPort();
+            String previousNgrokAuthtoken = McpSettings.getNgrokAuthtoken();
+            String previousPassword = McpSettings.ensureToken();
+            boolean passwordChanged = !previousPassword.equals(result.password());
             boolean wasRunning = McpServerManager.get().isRunning();
 
             McpSettings.setEnabled(result.enabled());
             McpSettings.setWriteEnabled(result.writeEnabled());
             McpSettings.setLocalNetworkEnabled(result.localNetworkEnabled());
             McpSettings.setPort(result.port());
-            if (result.regenerateToken())
-                McpSettings.regenerateToken();
-            else
-                McpSettings.ensureToken();
+            McpSettings.setNgrokAuthtoken(result.ngrokAuthtoken());
             try
             {
-                if (restartRequired(wasRunning, previousEnabled, previousLocalNetworkEnabled, result.enabled(),
-                    result.localNetworkEnabled()))
+                if (passwordChanged)
+                    McpSettings.setPassword(result.password());
+                if (restartRequired(wasRunning, previousEnabled, previousLocalNetworkEnabled, previousPort,
+                    result.enabled(), result.localNetworkEnabled(), result.port()))
                     McpServerManager.get().restart();
+                else if (!previousNgrokAuthtoken.equals(result.ngrokAuthtoken()))
+                    McpServerManager.get().refreshPublicEndpoint();
+                if (passwordChanged)
+                    McpServerManager.get().passwordChanged(result.password());
             }
             catch (Exception e)
             {
                 restorePreviousSettings(previousEnabled, previousWriteEnabled, previousLocalNetworkEnabled,
-                    previousPort, e);
+                    previousPort, previousNgrokAuthtoken, previousPassword, passwordChanged, e);
                 throw e;
             }
 
-            String message = successMessage(wasRunning, previousEnabled, previousLocalNetworkEnabled, result);
+            String message = successMessage(wasRunning, previousEnabled, previousLocalNetworkEnabled,
+                passwordChanged, result);
             Application.getMessagingFactory().sendMessage(new StatusBarMessage(message,
                 StatusBarMessage.TYPE_SUCCESS));
         }
         catch (Exception e)
         {
+            Logger.error("MCP-Einstellungen konnten nicht gespeichert werden", e);
             GUI.getStatusBar().setErrorText("MCP-Einstellungen konnten nicht gespeichert werden: "
                 + e.getMessage());
             throw new ApplicationException("MCP-Einstellungen konnten nicht gespeichert werden: "
@@ -60,10 +69,13 @@ public final class McpSettingsAction implements Action
     }
 
     static boolean restartRequired(boolean wasRunning, boolean previousEnabled, boolean previousLocalNetworkEnabled,
-                                   boolean enabled, boolean localNetworkEnabled)
+                                   int previousPort, boolean enabled, boolean localNetworkEnabled, int port)
     {
-        return !deferBindingChange(wasRunning, previousEnabled, previousLocalNetworkEnabled, enabled,
-            localNetworkEnabled);
+        if (deferBindingChange(wasRunning, previousEnabled, previousLocalNetworkEnabled, enabled,
+            localNetworkEnabled))
+            return false;
+        return previousEnabled != enabled || wasRunning != enabled
+            || (wasRunning && previousPort != port);
     }
 
     private static boolean deferBindingChange(boolean wasRunning, boolean previousEnabled,
@@ -74,12 +86,13 @@ public final class McpSettingsAction implements Action
     }
 
     private static String successMessage(boolean wasRunning, boolean previousEnabled,
-                                         boolean previousLocalNetworkEnabled, McpSettingsDialog.Result result)
+                                         boolean previousLocalNetworkEnabled, boolean passwordChanged,
+                                         McpSettingsDialog.Result result)
     {
         if (deferBindingChange(wasRunning, previousEnabled, previousLocalNetworkEnabled, result.enabled(),
             result.localNetworkEnabled()))
-            return result.regenerateToken()
-                ? "MCP-Einstellungen gespeichert. Netzwerk-Bindung, Port und neuer Token werden erst nach einem Neustart von Hibiscus aktiv."
+            return passwordChanged
+                ? "MCP-Einstellungen gespeichert. Neues Passwort ist aktiv; Netzwerk-Bindung und Port werden erst nach einem Neustart von Hibiscus aktiv."
                 : "MCP-Einstellungen gespeichert. Netzwerk-Bindung und Port werden erst nach einem Neustart von Hibiscus aktiv.";
         return McpSettings.isEnabled()
             ? "MCP-Server aktiviert: " + McpSettings.endpoint()
@@ -87,14 +100,18 @@ public final class McpSettingsAction implements Action
     }
 
     private void restorePreviousSettings(boolean enabled, boolean writeEnabled, boolean localNetworkEnabled,
-                                         int port, Exception original)
+                                         int port, String ngrokAuthtoken, String password,
+                                         boolean passwordChanged, Exception original)
     {
         McpSettings.setEnabled(enabled);
         McpSettings.setWriteEnabled(writeEnabled);
         McpSettings.setLocalNetworkEnabled(localNetworkEnabled);
         McpSettings.setPort(port);
+        McpSettings.setNgrokAuthtoken(ngrokAuthtoken);
         try
         {
+            if (passwordChanged)
+                McpSettings.setPassword(password);
             McpServerManager.get().restart();
         }
         catch (Exception restoreError)
