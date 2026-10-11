@@ -147,17 +147,24 @@ den Server darin ergänzen:
 }
 ```
 
-Die Header-Variable vermeidet ein [bekanntes Problem mit Leerzeichen in
-`mcp-remote`-Argumenten](https://github.com/punkpeye/mcp-remote#custom-headers)
-unter Claude Desktop für Windows. Bei einem anderen
-MCP-Port die URL entsprechend ändern. Anschließend Claude Desktop neu starten.
+Anschließend Claude Desktop neu starten.
 Die Konfigurationsdatei enthält das Passwort im Klartext und sollte nur für
 den eigenen Benutzer lesbar sein.
+
+### ChatGPT Desktop: lokale Freigabe
+
+1. Öffne Settings → Plugins → MCP (je nach Version auch Settings → MCP servers).
+2. Klicke auf Add MCP server.
+3. Wähle Streamable HTTP.
+4. Trage http://127.0.0.1:37653/mcp als URL ein.
+5. Den in Hibiscus angezeigten Bearer Token eintragen 
+6. Speichere die Verbindung.
 
 ## Konfiguration für globale Nutzung
 
 Für eine globale Nutzung ist es nötig, dass der MCP-Server über den Dienst ngrok global freigegeben wird. Hierzu muss auf https://ngrok.com/ ein kostenfreier Account angelegt werden und unter "Your Authtoken" der Token kopiert werden.
 
+Hierbei ist zu beachten, dass der Anbieter von ngrok sämtlichen Traffik mitlesen kann. Die Datenschutzhinweise des Anbieters sind zu beachten.
 
 Die mitgelieferten ngrok-Bibliotheken unterstützen Linux x86-64 und ARM64,
 macOS x86-64 und ARM64 sowie Windows x86-64.
@@ -191,12 +198,12 @@ Benutzernamen `hibiscus-mcp` und dem unterhalb der Tabs angezeigten gemeinsamen
 Passwort anmelden und den angezeigten Client bestätigen. 
 
 
-### Claude im Browser
+### Claude (broswer basiert)
 
 Der MCP-Server kann wie im Artikel '[MCP-Connector in Claude im Browser](https://support.claude.com/en/articles/11175166-get-started-with-custom-connectors-using-remote-mcp)' 
 beschrieben verbunden werden.
 
-### ChatGPT
+### ChatGPT (broswer basiert)
 Der MCP-Server kann folgendermaßen hinzugefügt werden:
  * [Plugins](https://chatgpt.com/plugins)
  * Hinzufügen / Benutzerdefinierten MCP-Server hinzufügen 
