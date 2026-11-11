@@ -92,6 +92,17 @@ Ueberweisungen anlegen muss im MCP-Dialog separat aktiviert werden. Aktuell
 nutzt nur `hibiscus_sepa_transfer_create` diese Freigabe. Das Tool legt lokale
 SEPA-Ueberweisungsentwuerfe an und fuehrt keine Bankkommunikation aus.
 
+`hibiscus_transaction_category_set` weist bestehenden Umsaetzen Kategorien zu.
+Dafuer gibt es die separate, standardmaessig deaktivierte Einstellung
+`categoryWriteEnabled` ("Umsatzkategorien zuweisen"). Eine bestehende Freigabe
+fuer Ueberweisungsentwuerfe schaltet Kategorieaenderungen nicht frei. Der Writer
+laedt Umsatz und Kategorie anhand ihrer IDs und speichert die Zuordnung in
+einer Datenbanktransaktion; fehlgeschlagene Schreibvorgaenge werden zurueckgerollt.
+Mit `transactionIds` kann derselbe Aufruf mehrere Umsaetze atomar derselben
+Kategorie zuordnen. `transactionId` und `transactionIds` sind gegenseitig exklusiv.
+Der Writer validiert und laedt alle IDs vor der ersten Aenderung und verwendet
+fuer den gesamten Batch eine gemeinsame Hibiscus-Datenbanktransaktion.
+
 Andere Plugins koennen optional eigene strukturierte MCP-Tools bereitstellen.
 Der Extension-Punkt lautet:
 

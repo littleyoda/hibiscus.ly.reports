@@ -49,6 +49,7 @@ public final class CoreTests
         McpOAuthServiceTests.run();
         McpOAuthHttpTests.run();
         McpJsonRpcHandlerTests.run();
+        de.open4me.hibiscus.reports.mcp.TransactionCategoryTests.run();
         AutomationCoreTests.run();
         AutomationSqlDialectTests.run();
         AutomationPaymentsTests.run();
