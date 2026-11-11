@@ -49,6 +49,8 @@ public final class McpJsonRpcHandler
     private final SepaTransferDraftWriter transferDraftWriter;
     private final McpAccountSynchronizer accountSynchronizer;
     private final BooleanSupplier writeEnabled;
+    private final TransactionCategoryWriter categoryWriter;
+    private final BooleanSupplier categoryWriteEnabled;
 
     public McpJsonRpcHandler(ReportTemplateContextFactory contextFactory,
                              ReportTransactionProvider transactionProvider)
@@ -82,12 +84,27 @@ public final class McpJsonRpcHandler
                       McpAccountSynchronizer accountSynchronizer,
                       BooleanSupplier writeEnabled)
     {
+        this(contextFactory, transactionProvider, categoryProvider, transferDraftWriter, accountSynchronizer,
+            writeEnabled, new HibiscusTransactionCategoryWriter(), McpSettings::isCategoryWriteEnabled);
+    }
+
+    McpJsonRpcHandler(ReportTemplateContextFactory contextFactory,
+                      ReportTransactionProvider transactionProvider,
+                      ReportCategoryProvider categoryProvider,
+                      SepaTransferDraftWriter transferDraftWriter,
+                      McpAccountSynchronizer accountSynchronizer,
+                      BooleanSupplier writeEnabled,
+                      TransactionCategoryWriter categoryWriter,
+                      BooleanSupplier categoryWriteEnabled)
+    {
         this.contextFactory = contextFactory;
         this.transactionProvider = transactionProvider;
         this.categoryProvider = categoryProvider;
         this.transferDraftWriter = transferDraftWriter;
         this.accountSynchronizer = accountSynchronizer;
         this.writeEnabled = writeEnabled;
+        this.categoryWriter = categoryWriter;
+        this.categoryWriteEnabled = categoryWriteEnabled;
     }
 
     public String handle(String json)
@@ -187,6 +204,12 @@ public final class McpJsonRpcHandler
         tools.add(tool("hibiscus_transactions_list", "Umsaetze auflisten",
             "Listet Umsaetze mit Zeitraum-, Konto- und Limit-Filtern.",
             transactionsSchema()));
+        ObjectNode assignCategory = tool("hibiscus_transaction_category_set", "Umsatzkategorie zuweisen",
+            "Weist einem oder mehreren bestehenden Umsaetzen eine Kategorie aus hibiscus_categories_list zu. Nutze transactionId oder transactionIds. Ersetzt vorhandene Zuordnungen atomar.",
+            transactionCategorySchema());
+        assignCategory.putObject("annotations").put("readOnlyHint", false)
+            .put("destructiveHint", true).put("idempotentHint", true).put("openWorldHint", false);
+        tools.add(assignCategory);
         tools.add(tool("hibiscus_sepa_transfer_create", "SEPA-Ueberweisungsentwurf anlegen",
             "Legt einen lokalen SEPA-Ueberweisungsentwurf in Hibiscus an. Der Auftrag wird nicht an die Bank gesendet.",
             sepaTransferSchema()));
@@ -220,6 +243,8 @@ public final class McpJsonRpcHandler
             case "hibiscus_account_groups_list" -> toolResult(accountGroups(arguments), "Kontogruppen geladen.");
             case "hibiscus_categories_list" -> toolResult(categories(arguments), "Kategorien geladen.");
             case "hibiscus_transactions_list" -> toolResult(transactions(arguments), "Umsaetze geladen.");
+            case "hibiscus_transaction_category_set" -> toolResult(assignTransactionCategory(arguments),
+                "Umsatzkategorie zugewiesen.");
             case "hibiscus_sepa_transfer_create" -> toolResult(createSepaTransferDraft(arguments),
                 "SEPA-Ueberweisungsentwurf angelegt.");
             default -> providerToolCall(name, arguments);
@@ -450,6 +475,73 @@ public final class McpJsonRpcHandler
         transactions.forEach(transaction -> array.add(transaction(transaction)));
         result.put("count", transactions.size());
         return result;
+    }
+
+    private ObjectNode assignTransactionCategory(JsonNode arguments)
+    {
+        if (!categoryWriteEnabled.getAsBoolean())
+            throw new IllegalStateException("Umsatzkategorien zuweisen ist deaktiviert.");
+        String categoryId = categoryAssignmentId(arguments, "categoryId");
+        boolean batch = arguments.has("transactionIds");
+        if (arguments.has("transactionId") == batch)
+            throw new IllegalArgumentException("Genau eines von transactionId oder transactionIds ist erforderlich.");
+        List<String> ids = new ArrayList<>();
+        if (batch)
+        {
+            JsonNode values = arguments.get("transactionIds");
+            if (!values.isArray() || values.isEmpty())
+                throw new IllegalArgumentException("transactionIds muss eine nicht leere Liste von IDs sein.");
+            java.util.Set<String> unique = new java.util.HashSet<>();
+            for (JsonNode value : values)
+            {
+                if (!value.isTextual() || value.asText().isBlank() || !unique.add(value.asText().trim()))
+                    throw new IllegalArgumentException("transactionIds muss eindeutige, nicht leere IDs als Text enthalten.");
+                ids.add(value.asText().trim());
+            }
+        }
+        else
+            ids.add(categoryAssignmentId(arguments, "transactionId"));
+        try
+        {
+            if (!batch)
+                return categoryAssignmentResult(categoryWriter.assign(ids.get(0), categoryId));
+            List<TransactionCategoryWriter.Result> assignments = categoryWriter.assignAll(ids, categoryId);
+            ObjectNode result = mapper.createObjectNode();
+            ArrayNode items = result.putArray("assignments");
+            int changedCount = 0;
+            for (TransactionCategoryWriter.Result assignment : assignments)
+            {
+                items.add(categoryAssignmentResult(assignment));
+                if (assignment.changed())
+                    changedCount++;
+            }
+            result.put("count", assignments.size());
+            result.put("changedCount", changedCount);
+            result.put("categoryId", categoryId);
+            return result;
+        }
+        catch (Exception e)
+        {
+            throw new IllegalStateException("Umsatzkategorie konnte nicht zugewiesen werden: " + e.getMessage(), e);
+        }
+    }
+
+    private ObjectNode categoryAssignmentResult(TransactionCategoryWriter.Result assignment)
+    {
+        ObjectNode result = mapper.createObjectNode();
+        result.put("transactionId", assignment.transactionId());
+        nullable(result, "previousCategoryId", assignment.previousCategoryId());
+        result.put("categoryId", assignment.categoryId());
+        result.put("changed", assignment.changed());
+        return result;
+    }
+
+    private static String categoryAssignmentId(JsonNode arguments, String field)
+    {
+        JsonNode value = arguments.get(field);
+        if (value == null || !value.isTextual() || value.asText().isBlank())
+            throw new IllegalArgumentException(field + " muss eine nicht leere ID als Text sein.");
+        return value.asText().trim();
     }
 
     private ObjectNode createSepaTransferDraft(JsonNode arguments)
@@ -803,6 +895,25 @@ public final class McpJsonRpcHandler
         ObjectNode props = (ObjectNode) schema.get("properties");
         property(props, "includeSkipped", "boolean", "Ausgeschlossene Kategorien einschliessen",
             "Wenn false, werden Kategorien ausgeblendet, die fuer Reports ausgeschlossen sind oder einen ausgeschlossenen Elternknoten haben. Standard ist true.");
+        return schema;
+    }
+
+    private ObjectNode transactionCategorySchema()
+    {
+        ObjectNode schema = schema();
+        ObjectNode props = (ObjectNode) schema.get("properties");
+        property(props, "transactionId", "string", "Umsatz-ID",
+            "Exakte ID eines bestehenden Umsatzes aus hibiscus_transactions_list.").put("minLength", 1);
+        ObjectNode ids = property(props, "transactionIds", "array", "Umsatz-IDs",
+            "Exakte IDs mehrerer bestehender Umsaetze. Alternativ zu transactionId; alle erhalten dieselbe Kategorie.");
+        ids.put("minItems", 1).put("uniqueItems", true);
+        ids.putObject("items").put("type", "string").put("minLength", 1);
+        property(props, "categoryId", "string", "Kategorie-ID",
+            "Exakte ID einer bestehenden Kategorie aus hibiscus_categories_list.").put("minLength", 1);
+        schema.putArray("required").add("categoryId");
+        ArrayNode alternatives = schema.putArray("oneOf");
+        alternatives.addObject().putArray("required").add("transactionId");
+        alternatives.addObject().putArray("required").add("transactionIds");
         return schema;
     }
 

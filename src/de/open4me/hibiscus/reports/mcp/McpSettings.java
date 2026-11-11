@@ -38,6 +38,16 @@ public final class McpSettings
         return SETTINGS.getBoolean("writeEnabled", false);
     }
 
+    public static boolean isCategoryWriteEnabled()
+    {
+        return SETTINGS.getBoolean("categoryWriteEnabled", false);
+    }
+
+    public static void setCategoryWriteEnabled(boolean enabled)
+    {
+        SETTINGS.setAttribute("categoryWriteEnabled", enabled);
+    }
+
     public static void setWriteEnabled(boolean enabled)
     {
         SETTINGS.setAttribute("writeEnabled", enabled);

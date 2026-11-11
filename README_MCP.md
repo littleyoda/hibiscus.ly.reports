@@ -224,6 +224,7 @@ Der MCP-Server kann folgendermaßen hinzugefügt werden:
 | `hibiscus_categories_list` | Umsatzkategorien auflisten |
 | `hibiscus_transactions_list` | Umsätze mit Zeitraum, Konto und Limit laden |
 | `hibiscus_sepa_transfer_create` | Lokalen SEPA-Überweisungsentwurf anlegen |
+| `hibiscus_transaction_category_set` | Einem oder mehreren bestehenden Umsätzen eine Kategorie zuweisen |
 
 Objekte, die andere Plugins per `hibiscus.ly.reports.template.context`
 bereitstellen, sind im MCP-Kontext ebenfalls verfügbar.
@@ -364,6 +365,45 @@ Unterstützte Zahlungsarten:
 - `Terminüberweisung`
 - `Interne Umbuchung`
 - `Echtzeitüberweisung`
+
+## Umsatzkategorie zuweisen
+
+Im MCP-Dialog **Umsatzkategorien zuweisen** aktivieren. Diese Freigabe ist
+standardmäßig aus und unabhängig von **Überweisungen anlegen**.
+
+Zuerst die IDs mit `hibiscus_transactions_list` und
+`hibiscus_categories_list` ermitteln, dann zum Beispiel aufrufen:
+
+```json
+{
+  "name": "hibiscus_transaction_category_set",
+  "arguments": { "transactionId": "123", "categoryId": "14" }
+}
+```
+
+Das Tool ersetzt die bisherige Kategorie genau dieses Umsatzes. Beide IDs
+müssen existieren. Eine leere Kategorie-ID zum Entfernen der Zuordnung wird
+nicht unterstützt. Die Antwort enthält `transactionId`, `categoryId`,
+`previousCategoryId` (gegebenenfalls `null`) und `changed`. Wird dieselbe
+Kategorie erneut zugewiesen, ist `changed` gleich `false`.
+Die Änderung wird lokal in einer Datenbanktransaktion gespeichert.
+
+Mehrere Umsätze erhalten mit `transactionIds` in einem Aufruf dieselbe Kategorie:
+
+```json
+{
+  "name": "hibiscus_transaction_category_set",
+  "arguments": { "transactionIds": ["123", "124", "125"], "categoryId": "14" }
+}
+```
+
+Genau eines von `transactionId` oder `transactionIds` muss angegeben werden.
+Die Liste darf nicht leer sein und keine doppelten IDs enthalten. Alle IDs werden
+vor der Änderung geprüft. Die gesamte Mehrfachzuweisung wird in einer gemeinsamen
+Datenbanktransaktion gespeichert; bei einem Fehler wird sie vollständig
+zurückgerollt. Die Antwort enthält `categoryId`, `count`, `changedCount` und
+`assignments` mit den oben beschriebenen Einzelergebnissen in Eingabereihenfolge.
+Die bisherige Einzelzuweisung und ihr Antwortformat bleiben unverändert.
 
 ## Resources
 

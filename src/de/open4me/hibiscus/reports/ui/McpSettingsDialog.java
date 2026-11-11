@@ -37,6 +37,7 @@ final class McpSettingsDialog extends AbstractDialog<McpSettingsDialog.Result>
 
     private final CheckboxInput enabled;
     private final CheckboxInput writeEnabled;
+    private final CheckboxInput categoryWriteEnabled;
     private final CheckboxInput localNetworkEnabled;
     private final TextInput port;
     private Text endpoint;
@@ -46,7 +47,7 @@ final class McpSettingsDialog extends AbstractDialog<McpSettingsDialog.Result>
     private Label publicStatus;
     private Result result;
 
-    record Result(boolean enabled, boolean writeEnabled, boolean localNetworkEnabled, int port,
+    record Result(boolean enabled, boolean writeEnabled, boolean categoryWriteEnabled, boolean localNetworkEnabled, int port,
                   String ngrokAuthtoken, String password)
     {
     }
@@ -60,6 +61,8 @@ final class McpSettingsDialog extends AbstractDialog<McpSettingsDialog.Result>
         enabled.setName("MCP-Server aktivieren");
         writeEnabled = new CheckboxInput(McpSettings.isWriteEnabled());
         writeEnabled.setName("Ueberweisungen anlegen");
+        categoryWriteEnabled = new CheckboxInput(McpSettings.isCategoryWriteEnabled());
+        categoryWriteEnabled.setName("Umsatzkategorien zuweisen");
         localNetworkEnabled = new CheckboxInput(McpSettings.isLocalNetworkEnabled());
         localNetworkEnabled.setName("Zugriff aus lokalem Netzwerk erlauben");
         port = new TextInput(Integer.toString(McpSettings.getPort()));
@@ -108,6 +111,7 @@ final class McpSettingsDialog extends AbstractDialog<McpSettingsDialog.Result>
                     if (parsedPort <= 0 || parsedPort > 65535)
                         throw new NumberFormatException("Port ausserhalb des gueltigen Bereichs.");
                     result = new Result((Boolean) enabled.getValue(), (Boolean) writeEnabled.getValue(),
+                        (Boolean) categoryWriteEnabled.getValue(),
                         (Boolean) localNetworkEnabled.getValue(), parsedPort,
                         ngrokAuthtoken.getText().trim(), password.getText());
                     close();
@@ -130,9 +134,11 @@ final class McpSettingsDialog extends AbstractDialog<McpSettingsDialog.Result>
             + "Mit der Netzwerkfreigabe können auch Geräte im lokalen Netzwerk zugreifen. "
             + "Berechtigte Clients können Hibiscus-Daten lesen. Die Option für Überweisungen "
             + "erlaubt zusätzlich lokale Entwürfe, aber kein Absenden an die Bank. "
+            + "Die separate Option für Umsatzkategorien erlaubt das Ändern bestehender Kategoriezuordnungen. "
             + "Änderungen der Netzwerk-Bindung werden erst nach einem Hibiscus-Neustart aktiv.", true);
         local.addInput(enabled);
         local.addInput(writeEnabled);
+        local.addInput(categoryWriteEnabled);
         local.addInput(localNetworkEnabled);
         local.addInput(port);
         endpoint = copyRow(local.getComposite(), "Endpoint", McpSettings.endpoint(), "Endpoint kopieren");
@@ -152,7 +158,8 @@ final class McpSettingsDialog extends AbstractDialog<McpSettingsDialog.Result>
             + "ist der MCP-Endpoint weltweit über das Internet erreichbar. Die öffentliche Adresse "
             + "ist kein Zugriffsschutz. Wer das gemeinsame Passwort oder einen gültigen OAuth-Zugriffstoken "
             + "besitzt, kann Hibiscus-Daten abrufen. Ist das Anlegen von Überweisungsentwürfen aktiviert, "
-            + "können berechtigte Clients auch Entwürfe erstellen. Gib Passwort und ngrok Authtoken "
+            + "können berechtigte Clients auch Entwürfe erstellen. Bei aktivierter Kategoriezuweisung "
+            + "können sie Umsatzkategorien ändern. Gib Passwort und ngrok Authtoken "
             + "nur an vertrauenswürdige Personen weiter. Zum Beenden der globalen Freigabe das "
             + "ngrok Authtoken entfernen.");
         GridData warningData = new GridData(SWT.FILL, SWT.CENTER, true, false);
