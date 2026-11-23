@@ -1,13 +1,19 @@
 package de.open4me.hibiscus.reports.mcp;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BooleanSupplier;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -47,6 +53,7 @@ public final class McpJsonRpcHandlerTests
             syncsSelectedAccounts();
             listsTransactionsWithFilters();
             listsTransactionsWithCategoryFilter();
+            listsTransactionIds();
             rendersExtensionObjects();
             listsProviderTools();
             callsProviderTools();
@@ -55,6 +62,26 @@ public final class McpJsonRpcHandlerTests
             rejectsTransferDraftWithFriendlyRequiredFieldMessage();
             rejectsInvalidTransferDraft();
             createsTransferDraft();
+            hidesDeleteToolWhenDisabled();
+            listsDeleteToolWhenEnabled();
+            deleteToolFollowsSettingWithoutRestart();
+            rejectsDeleteWhenDisabled();
+            rejectsDeleteWithoutIds();
+            deleteDryRunReportsWithoutConfirmOrDelete();
+            deletesConfirmedTransactionsPerId();
+            declinedDeleteDeletesNothing();
+            deleteConfirmFailureDeletesNothing();
+            deleteWithOnlyUnknownIdsSkipsConfirmation();
+            deleteLookupFailureOnlyAffectsThatId();
+            deleteAcceptsNumericIds();
+            rejectsNonBooleanDryRun();
+            rejectsNonScalarIds();
+            rejectsTooManyIds();
+            deleteHandlesCandidateWithoutDate();
+            deleteSkipsRefreshWhenNothingWasDeleted();
+            deleteRefreshFailureKeepsResults();
+            acceptsBooleanStringDryRun();
+            messageLessConfirmFailureNamesExceptionClass();
         }
         catch (Exception e)
         {
@@ -232,6 +259,22 @@ public final class McpJsonRpcHandlerTests
         check(query.includeSubcategories(), "query include subcategories");
     }
 
+    private static void listsTransactionIds() throws Exception
+    {
+        McpJsonRpcHandler handler = handler(new FakeTransactionProvider());
+        JsonNode response = MAPPER.readTree(handler.handle("""
+            {"jsonrpc":"2.0","id":17,"method":"tools/call","params":{
+              "name":"hibiscus_transactions_list",
+              "arguments":{}
+            }}
+            """));
+        JsonNode transactions = response.path("result").path("structuredContent").path("transactions");
+        checkEquals(3, transactions.size(), "transaction id count");
+        check(transactions.get(0).path("id").isTextual(), "transaction id is string");
+        checkEquals("13", transactions.get(0).path("id").asText(), "transaction id");
+        checkEquals("20", transactions.get(2).path("id").asText(), "last transaction id");
+    }
+
     private static void rendersExtensionObjects() throws Exception
     {
         Extension extension = extendable -> ((ReportTemplateContext) extendable).put("extern",
@@ -381,6 +424,353 @@ public final class McpJsonRpcHandlerTests
         checkEquals("Nicht an die Bank gesendet", draft.path("sendStatus").asText(), "send status text");
     }
 
+    private static void hidesDeleteToolWhenDisabled() throws Exception
+    {
+        McpJsonRpcHandler handler = handler(new FakeTransactionProvider(), new FakeTransactionDeleter(), () -> false);
+        check(!toolNames(handler).contains("hibiscus_transactions_delete"), "delete tool hidden");
+    }
+
+    private static void listsDeleteToolWhenEnabled() throws Exception
+    {
+        McpJsonRpcHandler handler = handler(new FakeTransactionProvider(), new FakeTransactionDeleter(), () -> true);
+        JsonNode tools = MAPPER.readTree(handler.handle("{\"jsonrpc\":\"2.0\",\"id\":30,\"method\":\"tools/list\"}"))
+            .path("result").path("tools");
+        List<String> names = new ArrayList<>();
+        tools.forEach(tool -> names.add(tool.path("name").asText()));
+        check(names.contains("hibiscus_transactions_delete"), "delete tool listed");
+        JsonNode props = schemaProperties(tools, "hibiscus_transactions_delete");
+        checkEquals("array", props.path("ids").path("type").asText(), "delete ids type");
+        checkEquals(McpJsonRpcHandler.MAX_DELETE_IDS, props.path("ids").path("maxItems").asInt(),
+            "delete ids maxItems matches the enforced limit");
+        checkEquals("boolean", props.path("dryRun").path("type").asText(), "delete dryRun type");
+        String description = "";
+        for (JsonNode tool : tools)
+            if ("hibiscus_transactions_delete".equals(tool.path("name").asText()))
+                description = tool.path("description").asText();
+        check(description.contains("Der Aufruf wartet bis zu "
+                + HibiscusTransactionDeleter.CONFIRM_TIMEOUT.toSeconds() + " Sekunden auf die Bestaetigung."),
+            "delete description mentions confirmation wait from the timeout constant: " + description);
+        checkEquals(50L, HibiscusTransactionDeleter.CONFIRM_TIMEOUT.toSeconds(),
+            "confirmation timeout stays below the usual 60 s client limit");
+    }
+
+    private static void rejectsNonScalarIds() throws Exception
+    {
+        FakeTransactionDeleter deleter = deleterWithExisting("7");
+        McpJsonRpcHandler handler = handler(new FakeTransactionProvider(), deleter, () -> true);
+        for (String arguments : List.of("{\"ids\":[{\"id\":\"7\"}]}", "{\"ids\":[[\"7\"]]}", "{\"ids\":[null]}"))
+        {
+            JsonNode response = callDelete(handler, arguments);
+            check(response.has("error"), "non-scalar id rejected: " + arguments);
+            check(response.path("error").path("data").asText().contains("nur Umsatz-IDs als Text oder Zahl"),
+                "non-scalar id message: " + arguments);
+        }
+        checkNoDeleterCalls(deleter);
+    }
+
+    private static void rejectsTooManyIds() throws Exception
+    {
+        FakeTransactionDeleter deleter = new FakeTransactionDeleter();
+        McpJsonRpcHandler handler = handler(new FakeTransactionProvider(), deleter, () -> true);
+        StringBuilder ids = new StringBuilder();
+        for (int i = 1; i <= 201; i++)
+            ids.append(i == 1 ? "" : ",").append('"').append(i).append('"');
+        JsonNode response = callDelete(handler, "{\"ids\":[" + ids + "]}");
+        check(response.has("error"), "more than 200 ids rejected");
+        check(response.path("error").path("data").asText().contains("hoechstens 200 Umsatz-IDs"),
+            "too many ids message");
+        checkNoDeleterCalls(deleter);
+
+        StringBuilder twoHundred = new StringBuilder();
+        for (int i = 1; i <= 200; i++)
+            twoHundred.append(i == 1 ? "" : ",").append('"').append(i).append('"');
+        check(!callDelete(handler, "{\"ids\":[" + twoHundred + "],\"dryRun\":true}").has("error"),
+            "exactly 200 ids accepted");
+    }
+
+    private static void deleteHandlesCandidateWithoutDate() throws Exception
+    {
+        FakeTransactionDeleter deleter = new FakeTransactionDeleter();
+        deleter.existing.put("1", new TransactionDeleter.Candidate("1", "7", "Beispielkonto", null, -42.0, "EUR",
+            "Beispiel GmbH", "Rechnung 4711", List.of()));
+        McpJsonRpcHandler handler = handler(new FakeTransactionProvider(), deleter, () -> true);
+        JsonNode entry = result(callDelete(handler, "{\"ids\":[\"1\"],\"dryRun\":true}")).path("results").get(0);
+        checkEquals("wouldDelete", entry.path("status").asText(), "undated transaction can be deleted");
+        check(entry.path("transaction").path("datum").isNull(), "undated transaction reports datum null");
+    }
+
+    private static void deleteToolFollowsSettingWithoutRestart() throws Exception
+    {
+        FakeTransactionDeleter deleter = new FakeTransactionDeleter();
+        deleter.existing.put("1", candidate("1"));
+        deleter.answer = true;
+        AtomicBoolean enabled = new AtomicBoolean(false);
+        McpJsonRpcHandler handler = handler(new FakeTransactionProvider(), deleter, enabled::get);
+        check(!toolNames(handler).contains("hibiscus_transactions_delete"), "delete tool absent while off");
+        check(callDelete(handler, "{\"ids\":[\"1\"]}").has("error"), "delete call refused while off");
+        enabled.set(true);
+        check(toolNames(handler).contains("hibiscus_transactions_delete"), "delete tool present after enabling");
+        JsonNode response = callDelete(handler, "{\"ids\":[\"1\"]}");
+        check(!response.has("error"), "delete call succeeds after enabling");
+        checkEquals("deleted", result(response).path("results").get(0).path("status").asText(),
+            "status after enabling");
+    }
+
+    private static void rejectsDeleteWhenDisabled() throws Exception
+    {
+        FakeTransactionDeleter deleter = new FakeTransactionDeleter();
+        McpJsonRpcHandler handler = handler(new FakeTransactionProvider(), deleter, () -> false);
+        JsonNode response = callDelete(handler, "{\"ids\":[\"1\"]}");
+        check(response.has("error"), "disabled delete rejected");
+        check(response.path("error").path("data").asText().contains("Umsaetze loeschen"),
+            "disabled delete message");
+        checkNoDeleterCalls(deleter);
+    }
+
+    private static void rejectsDeleteWithoutIds() throws Exception
+    {
+        FakeTransactionDeleter deleter = new FakeTransactionDeleter();
+        McpJsonRpcHandler handler = handler(new FakeTransactionProvider(), deleter, () -> true);
+        for (String arguments : List.of("{}", "{\"ids\":[]}"))
+        {
+            JsonNode response = callDelete(handler, arguments);
+            check(response.has("error"), "delete without ids rejected: " + arguments);
+            check(response.path("error").path("data").asText().contains("mindestens eine Umsatz-ID"),
+                "delete without ids message: " + arguments);
+        }
+        checkNoDeleterCalls(deleter);
+    }
+
+    private static void deleteDryRunReportsWithoutConfirmOrDelete() throws Exception
+    {
+        FakeTransactionDeleter deleter = deleterWithExisting("1", "2");
+        McpJsonRpcHandler handler = handler(new FakeTransactionProvider(), deleter, () -> true);
+        JsonNode result = result(callDelete(handler, "{\"ids\":[\"1\",\"2\",\"x\"],\"dryRun\":true}"));
+        JsonNode results = result.path("results");
+        checkEquals("wouldDelete", results.get(0).path("status").asText(), "dry run status 1");
+        checkEquals("wouldDelete", results.get(1).path("status").asText(), "dry run status 2");
+        checkEquals("unknown", results.get(2).path("status").asText(), "dry run status x");
+        check(deleter.confirmCalls.isEmpty(), "dry run does not confirm");
+        check(deleter.deleted.isEmpty(), "dry run does not delete");
+        checkEquals(0, deleter.refreshCalls, "dry run does not refresh views");
+        check(result.path("dryRun").asBoolean(), "dry run flag");
+        check(!result.has("confirmed"), "dry run has no confirmed");
+        checkEquals(2, result.path("counts").path("wouldDelete").asInt(), "dry run wouldDelete count");
+        checkEquals(1, result.path("counts").path("unknown").asInt(), "dry run unknown count");
+        checkEquals("kategorie: Versicherung", results.get(0).path("links").get(0).asText(), "dry run link");
+        checkEquals("Beispiel GmbH", results.get(0).path("transaction").path("gegenkontoName").asText(),
+            "dry run counterparty");
+        checkEquals("EUR", results.get(0).path("transaction").path("waehrung").asText(), "dry run currency");
+    }
+
+    private static void deletesConfirmedTransactionsPerId() throws Exception
+    {
+        FakeTransactionDeleter deleter = deleterWithExisting("1", "2");
+        deleter.failingDeletes.add("2");
+        deleter.answer = true;
+        McpJsonRpcHandler handler = handler(new FakeTransactionProvider(), deleter, () -> true);
+        JsonNode result = result(callDelete(handler, "{\"ids\":[\"1\",\"2\",\"1\",\"x\"]}"));
+        JsonNode results = result.path("results");
+        checkEquals(3, results.size(), "distinct result entries");
+        checkEquals("1", results.get(0).path("id").asText(), "result order 1");
+        checkEquals("2", results.get(1).path("id").asText(), "result order 2");
+        checkEquals("x", results.get(2).path("id").asText(), "result order x");
+        checkEquals("deleted", results.get(0).path("status").asText(), "status 1");
+        checkEquals("error", results.get(1).path("status").asText(), "status 2");
+        check(results.get(1).path("message").asText().contains("Loeschen fehlgeschlagen"), "error message 2");
+        checkEquals("unknown", results.get(2).path("status").asText(), "status x");
+        checkEquals(1, deleter.confirmCalls.size(), "confirm called once");
+        checkEquals(2, deleter.confirmCalls.get(0).size(), "confirm candidates");
+        checkEquals(Integer.valueOf(1), deleter.unknownCounts.get(0), "confirm unknown count");
+        Instant requestStart = deleter.requestStarts.get(0);
+        check(requestStart != null && !requestStart.isAfter(Instant.now()),
+            "confirm gets the start of the request, so the dialog timeout includes the lookup time");
+        checkEquals(List.of("1"), deleter.deleted, "deleted ids");
+        checkEquals(1, deleter.refreshCalls, "open views refreshed once after deleting");
+        check(result.path("confirmed").isBoolean() && result.path("confirmed").asBoolean(), "confirmed true");
+        check(!result.path("dryRun").asBoolean(), "dryRun false");
+        JsonNode counts = result.path("counts");
+        checkEquals(1, counts.path("deleted").asInt(), "deleted count");
+        checkEquals(1, counts.path("error").asInt(), "error count");
+        checkEquals(1, counts.path("unknown").asInt(), "unknown count");
+        checkEquals(0, counts.path("notConfirmed").asInt(), "notConfirmed count");
+        checkEquals(0, counts.path("wouldDelete").asInt(), "wouldDelete count");
+    }
+
+    private static void deleteSkipsRefreshWhenNothingWasDeleted() throws Exception
+    {
+        FakeTransactionDeleter deleter = deleterWithExisting("1");
+        deleter.failingDeletes.add("1");
+        deleter.answer = true;
+        McpJsonRpcHandler handler = handler(new FakeTransactionProvider(), deleter, () -> true);
+        JsonNode result = result(callDelete(handler, "{\"ids\":[\"1\"]}"));
+        checkEquals("error", result.path("results").get(0).path("status").asText(), "failed delete status");
+        checkEquals(0, deleter.refreshCalls, "no refresh when nothing was deleted");
+    }
+
+    private static void deleteRefreshFailureKeepsResults() throws Exception
+    {
+        FakeTransactionDeleter deleter = deleterWithExisting("1");
+        deleter.answer = true;
+        deleter.failingRefresh = true;
+        McpJsonRpcHandler handler = handler(new FakeTransactionProvider(), deleter, () -> true);
+        JsonNode result = result(callDelete(handler, "{\"ids\":[\"1\"]}"));
+        checkEquals(1, deleter.refreshCalls, "refresh attempted");
+        checkEquals("deleted", result.path("results").get(0).path("status").asText(),
+            "deletion still reported after refresh failure");
+        checkEquals(1, result.path("counts").path("deleted").asInt(), "deleted count after refresh failure");
+    }
+
+    private static void declinedDeleteDeletesNothing() throws Exception
+    {
+        FakeTransactionDeleter deleter = deleterWithExisting("1", "2");
+        deleter.answer = false;
+        McpJsonRpcHandler handler = handler(new FakeTransactionProvider(), deleter, () -> true);
+        JsonNode result = result(callDelete(handler, "{\"ids\":[\"1\",\"2\",\"x\"]}"));
+        JsonNode results = result.path("results");
+        checkEquals("notConfirmed", results.get(0).path("status").asText(), "declined status 1");
+        checkEquals("notConfirmed", results.get(1).path("status").asText(), "declined status 2");
+        checkEquals("unknown", results.get(2).path("status").asText(), "declined status x");
+        check(deleter.deleted.isEmpty(), "declined deletes nothing");
+        checkEquals(0, deleter.refreshCalls, "declined does not refresh views");
+        check(result.path("confirmed").isBoolean() && !result.path("confirmed").asBoolean(), "confirmed false");
+        check(!result.has("confirmError"), "no confirmError when declined");
+        checkEquals(2, result.path("counts").path("notConfirmed").asInt(), "declined notConfirmed count");
+        checkEquals(0, result.path("counts").path("deleted").asInt(), "declined deleted count");
+    }
+
+    private static void deleteConfirmFailureDeletesNothing() throws Exception
+    {
+        FakeTransactionDeleter deleter = deleterWithExisting("1", "2");
+        deleter.answer = null;
+        McpJsonRpcHandler handler = handler(new FakeTransactionProvider(), deleter, () -> true);
+        JsonNode result = result(callDelete(handler, "{\"ids\":[\"1\",\"2\"]}"));
+        checkEquals("notConfirmed", result.path("results").get(0).path("status").asText(),
+            "failed confirm status 1");
+        checkEquals("notConfirmed", result.path("results").get(1).path("status").asText(),
+            "failed confirm status 2");
+        check(result.path("confirmError").asText().contains("kein GUI"), "confirm error message");
+        check(result.path("confirmed").isBoolean() && !result.path("confirmed").asBoolean(),
+            "confirmed false after confirm failure");
+        check(deleter.deleted.isEmpty(), "failed confirm deletes nothing");
+    }
+
+    private static void deleteWithOnlyUnknownIdsSkipsConfirmation() throws Exception
+    {
+        FakeTransactionDeleter deleter = new FakeTransactionDeleter();
+        deleter.answer = true;
+        McpJsonRpcHandler handler = handler(new FakeTransactionProvider(), deleter, () -> true);
+        JsonNode result = result(callDelete(handler, "{\"ids\":[\"x\",\"y\"]}"));
+        checkEquals("unknown", result.path("results").get(0).path("status").asText(), "unknown status x");
+        checkEquals("unknown", result.path("results").get(1).path("status").asText(), "unknown status y");
+        check(deleter.confirmCalls.isEmpty(), "no confirm for unknown ids");
+        check(deleter.deleted.isEmpty(), "no delete for unknown ids");
+        check(!result.has("confirmed"), "no confirmed for unknown ids");
+        checkEquals(2, result.path("counts").path("unknown").asInt(), "unknown count");
+    }
+
+    private static void deleteLookupFailureOnlyAffectsThatId() throws Exception
+    {
+        FakeTransactionDeleter deleter = deleterWithExisting("1");
+        deleter.failingLookups.add("3");
+        deleter.answer = true;
+        McpJsonRpcHandler handler = handler(new FakeTransactionProvider(), deleter, () -> true);
+        JsonNode results = result(callDelete(handler, "{\"ids\":[\"3\",\"1\"]}")).path("results");
+        checkEquals("error", results.get(0).path("status").asText(), "lookup failure status");
+        check(results.get(0).path("message").asText().contains("Suche fehlgeschlagen"), "lookup failure message");
+        checkEquals("deleted", results.get(1).path("status").asText(), "other id still deleted");
+        checkEquals(Integer.valueOf(1), deleter.unknownCounts.get(0),
+            "dialog counts the failed lookup among the skipped ids");
+    }
+
+    private static void deleteAcceptsNumericIds() throws Exception
+    {
+        FakeTransactionDeleter deleter = deleterWithExisting("1");
+        deleter.answer = true;
+        McpJsonRpcHandler handler = handler(new FakeTransactionProvider(), deleter, () -> true);
+        JsonNode results = result(callDelete(handler, "{\"ids\":[1]}")).path("results");
+        checkEquals("1", results.get(0).path("id").asText(), "numeric id as string");
+        check(results.get(0).path("id").isTextual(), "numeric id output is string");
+        checkEquals("deleted", results.get(0).path("status").asText(), "numeric id status");
+    }
+
+    private static void rejectsNonBooleanDryRun() throws Exception
+    {
+        FakeTransactionDeleter deleter = deleterWithExisting("1");
+        deleter.answer = true;
+        McpJsonRpcHandler handler = handler(new FakeTransactionProvider(), deleter, () -> true);
+        for (String value : List.of("\"yes\"", "1", "0", "\"\"", "{}", "[]"))
+        {
+            JsonNode response = callDelete(handler, "{\"ids\":[\"1\"],\"dryRun\":" + value + "}");
+            check(response.has("error"), "non-boolean dryRun rejected: " + value);
+            check(response.path("error").path("data").asText().contains("dryRun: true oder false angeben."),
+                "non-boolean dryRun message: " + value + " " + response.path("error"));
+        }
+        checkNoDeleterCalls(deleter);
+    }
+
+    private static void acceptsBooleanStringDryRun() throws Exception
+    {
+        FakeTransactionDeleter deleter = deleterWithExisting("1");
+        McpJsonRpcHandler handler = handler(new FakeTransactionProvider(), deleter, () -> true);
+        JsonNode result = result(callDelete(handler, "{\"ids\":[\"1\"],\"dryRun\":\"true\"}"));
+        check(result.path("dryRun").asBoolean(), "string true is a dry run");
+        check(deleter.confirmCalls.isEmpty() && deleter.deleted.isEmpty(), "string true dry run touches nothing");
+    }
+
+    private static void messageLessConfirmFailureNamesExceptionClass() throws Exception
+    {
+        FakeTransactionDeleter deleter = deleterWithExisting("1");
+        deleter.answer = null;
+        deleter.silentFailure = true;
+        McpJsonRpcHandler handler = handler(new FakeTransactionProvider(), deleter, () -> true);
+        JsonNode result = result(callDelete(handler, "{\"ids\":[\"1\"]}"));
+        checkEquals("IllegalStateException", result.path("confirmError").asText(), "message-less confirm error");
+        check(deleter.deleted.isEmpty(), "message-less confirm failure deletes nothing");
+    }
+
+    private static JsonNode callDelete(McpJsonRpcHandler handler, String arguments) throws Exception
+    {
+        return MAPPER.readTree(handler.handle("{\"jsonrpc\":\"2.0\",\"id\":31,\"method\":\"tools/call\","
+            + "\"params\":{\"name\":\"hibiscus_transactions_delete\",\"arguments\":" + arguments + "}}"));
+    }
+
+    private static JsonNode result(JsonNode response)
+    {
+        check(!response.has("error"), "unexpected error: " + response.path("error"));
+        return response.path("result").path("structuredContent");
+    }
+
+    private static List<String> toolNames(McpJsonRpcHandler handler) throws Exception
+    {
+        JsonNode tools = MAPPER.readTree(handler.handle("{\"jsonrpc\":\"2.0\",\"id\":32,\"method\":\"tools/list\"}"))
+            .path("result").path("tools");
+        List<String> names = new ArrayList<>();
+        tools.forEach(tool -> names.add(tool.path("name").asText()));
+        return names;
+    }
+
+    private static void checkNoDeleterCalls(FakeTransactionDeleter deleter)
+    {
+        check(deleter.lookups.isEmpty(), "deleter lookups untouched");
+        check(deleter.confirmCalls.isEmpty(), "deleter confirm untouched");
+        check(deleter.deleted.isEmpty(), "deleter delete untouched");
+    }
+
+    private static FakeTransactionDeleter deleterWithExisting(String... ids)
+    {
+        FakeTransactionDeleter deleter = new FakeTransactionDeleter();
+        for (String id : ids)
+            deleter.existing.put(id, candidate(id));
+        return deleter;
+    }
+
+    private static TransactionDeleter.Candidate candidate(String id)
+    {
+        return new TransactionDeleter.Candidate(id, "7", "Beispielkonto", LocalDate.of(2025, 1, 14), -42.0, "EUR",
+            "Beispiel GmbH", "Rechnung 4711", "1".equals(id) ? List.of("kategorie: Versicherung") : List.of());
+    }
+
     private static void withProviderExtension(ThrowingRunnable runnable) throws Exception
     {
         Extension extension = extendable -> {
@@ -418,7 +808,8 @@ public final class McpJsonRpcHandlerTests
     private static McpJsonRpcHandler handler(ReportTransactionProvider transactions)
     {
         return new McpJsonRpcHandler(new ReportTemplateContextFactory(new FakeAccountProvider(transactions),
-            transactions), transactions, new FakeCategoryProvider());
+            transactions), transactions, new FakeCategoryProvider(), new FakeTransferDraftWriter(),
+            () -> false);
     }
 
     private static McpJsonRpcHandler handler(ReportTransactionProvider transactions,
@@ -437,6 +828,15 @@ public final class McpJsonRpcHandlerTests
         return new McpJsonRpcHandler(new ReportTemplateContextFactory(new FakeAccountProvider(transactions),
             transactions), transactions, new FakeCategoryProvider(), transferDraftWriter, accountSynchronizer,
             () -> writeEnabled);
+    }
+
+    private static McpJsonRpcHandler handler(ReportTransactionProvider transactions,
+                                             TransactionDeleter transactionDeleter,
+                                             BooleanSupplier deleteEnabled)
+    {
+        return new McpJsonRpcHandler(new ReportTemplateContextFactory(new FakeAccountProvider(transactions),
+            transactions), transactions, new FakeCategoryProvider(), new FakeTransferDraftWriter(), null,
+            () -> false, transactionDeleter, deleteEnabled);
     }
 
     public record ExternalObject(String name)
@@ -595,6 +995,58 @@ public final class McpJsonRpcHandlerTests
             return new Result("draft-1", request.accountId(), "Aktives Girokonto", request.recipientName(),
                 request.recipientIban(), request.recipientBic(), request.amount(), request.executionDate(),
                 request.type(), true);
+        }
+    }
+
+    private static final class FakeTransactionDeleter implements TransactionDeleter
+    {
+        private final Map<String, Candidate> existing = new LinkedHashMap<>();
+        private final Set<String> failingLookups = new HashSet<>();
+        private final Set<String> failingDeletes = new HashSet<>();
+        private Boolean answer;
+        private boolean silentFailure;
+        private final List<String> lookups = new ArrayList<>();
+        private final List<List<Candidate>> confirmCalls = new ArrayList<>();
+        private final List<Integer> unknownCounts = new ArrayList<>();
+        private final List<Instant> requestStarts = new ArrayList<>();
+        private final List<String> deleted = new ArrayList<>();
+        private int refreshCalls;
+        private boolean failingRefresh;
+
+        @Override
+        public Optional<Candidate> find(String id)
+        {
+            lookups.add(id);
+            if (failingLookups.contains(id))
+                throw new IllegalStateException("Suche fehlgeschlagen " + id);
+            return Optional.ofNullable(existing.get(id));
+        }
+
+        @Override
+        public boolean confirm(List<Candidate> candidates, int skippedCount, Instant requestStart)
+        {
+            confirmCalls.add(List.copyOf(candidates));
+            unknownCounts.add(skippedCount);
+            requestStarts.add(requestStart);
+            if (answer == null)
+                throw silentFailure ? new IllegalStateException() : new IllegalStateException("kein GUI");
+            return answer;
+        }
+
+        @Override
+        public void delete(String id)
+        {
+            if (failingDeletes.contains(id))
+                throw new IllegalStateException("Loeschen fehlgeschlagen " + id);
+            deleted.add(id);
+        }
+
+        @Override
+        public void refreshOpenViews()
+        {
+            refreshCalls++;
+            if (failingRefresh)
+                throw new IllegalStateException("Ansicht nicht neu geladen");
         }
     }
 

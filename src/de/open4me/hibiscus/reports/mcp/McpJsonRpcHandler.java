@@ -4,14 +4,18 @@ import java.io.InputStream;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Date;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 
@@ -41,6 +45,7 @@ import de.open4me.hibiscus.reports.model.ReportTransaction;
 public final class McpJsonRpcHandler
 {
     static final String PROTOCOL_VERSION = "2025-11-25";
+    static final int MAX_DELETE_IDS = 200;
 
     private final ObjectMapper mapper = new ObjectMapper();
     private final ReportTemplateContextFactory contextFactory;
@@ -49,6 +54,8 @@ public final class McpJsonRpcHandler
     private final SepaTransferDraftWriter transferDraftWriter;
     private final McpAccountSynchronizer accountSynchronizer;
     private final BooleanSupplier writeEnabled;
+    private final TransactionDeleter transactionDeleter;
+    private final BooleanSupplier deleteEnabled;
 
     public McpJsonRpcHandler(ReportTemplateContextFactory contextFactory,
                              ReportTransactionProvider transactionProvider)
@@ -61,7 +68,8 @@ public final class McpJsonRpcHandler
                              ReportCategoryProvider categoryProvider)
     {
         this(contextFactory, transactionProvider, categoryProvider, new HibiscusSepaTransferDraftWriter(),
-            McpSettings::isWriteEnabled);
+            new HibiscusMcpAccountSynchronizer(), McpSettings::isWriteEnabled,
+            new HibiscusTransactionDeleter(), McpSettings::isDeleteEnabled);
     }
 
     McpJsonRpcHandler(ReportTemplateContextFactory contextFactory,
@@ -82,12 +90,27 @@ public final class McpJsonRpcHandler
                       McpAccountSynchronizer accountSynchronizer,
                       BooleanSupplier writeEnabled)
     {
+        this(contextFactory, transactionProvider, categoryProvider, transferDraftWriter, accountSynchronizer,
+            writeEnabled, null, () -> false);
+    }
+
+    McpJsonRpcHandler(ReportTemplateContextFactory contextFactory,
+                      ReportTransactionProvider transactionProvider,
+                      ReportCategoryProvider categoryProvider,
+                      SepaTransferDraftWriter transferDraftWriter,
+                      McpAccountSynchronizer accountSynchronizer,
+                      BooleanSupplier writeEnabled,
+                      TransactionDeleter transactionDeleter,
+                      BooleanSupplier deleteEnabled)
+    {
         this.contextFactory = contextFactory;
         this.transactionProvider = transactionProvider;
         this.categoryProvider = categoryProvider;
         this.transferDraftWriter = transferDraftWriter;
         this.accountSynchronizer = accountSynchronizer;
         this.writeEnabled = writeEnabled;
+        this.transactionDeleter = transactionDeleter;
+        this.deleteEnabled = deleteEnabled;
     }
 
     public String handle(String json)
@@ -185,8 +208,16 @@ public final class McpJsonRpcHandler
             "Listet alle Hibiscus-Umsatzkategorien mit IDs und Hierarchiepfaden.",
             categoriesSchema()));
         tools.add(tool("hibiscus_transactions_list", "Umsaetze auflisten",
-            "Listet Umsaetze mit Zeitraum-, Konto- und Limit-Filtern.",
+            "Listet Umsaetze mit Zeitraum-, Konto- und Limit-Filtern. Das Feld id ist die Hibiscus-Umsatz-ID.",
             transactionsSchema()));
+        if (deleteEnabled.getAsBoolean())
+            tools.add(tool("hibiscus_transactions_delete", "Umsaetze loeschen",
+                "Loescht Umsaetze anhand ihrer IDs aus der lokalen Hibiscus-Datenbank. Bei der Bank aendert sich nichts. "
+                    + "Nicht umkehrbar. Zuerst mit dryRun=true pruefen; jede echte Loeschung muss der Benutzer in "
+                    + "Hibiscus bestaetigen. Der Aufruf wartet bis zu "
+                    + HibiscusTransactionDeleter.CONFIRM_TIMEOUT.toSeconds() + " Sekunden auf die Bestaetigung. "
+                    + "Hoechstens " + MAX_DELETE_IDS + " IDs pro Aufruf.",
+                transactionsDeleteSchema()));
         tools.add(tool("hibiscus_sepa_transfer_create", "SEPA-Ueberweisungsentwurf anlegen",
             "Legt einen lokalen SEPA-Ueberweisungsentwurf in Hibiscus an. Der Auftrag wird nicht an die Bank gesendet.",
             sepaTransferSchema()));
@@ -220,6 +251,8 @@ public final class McpJsonRpcHandler
             case "hibiscus_account_groups_list" -> toolResult(accountGroups(arguments), "Kontogruppen geladen.");
             case "hibiscus_categories_list" -> toolResult(categories(arguments), "Kategorien geladen.");
             case "hibiscus_transactions_list" -> toolResult(transactions(arguments), "Umsaetze geladen.");
+            case "hibiscus_transactions_delete" -> toolResult(deleteTransactions(arguments),
+                "Umsaetze verarbeitet.");
             case "hibiscus_sepa_transfer_create" -> toolResult(createSepaTransferDraft(arguments),
                 "SEPA-Ueberweisungsentwurf angelegt.");
             default -> providerToolCall(name, arguments);
@@ -452,6 +485,148 @@ public final class McpJsonRpcHandler
         return result;
     }
 
+    private ObjectNode deleteTransactions(JsonNode arguments)
+    {
+        Instant requestStart = Instant.now();
+        if (!deleteEnabled.getAsBoolean())
+            throw new IllegalStateException("Umsaetze loeschen ist deaktiviert.");
+        JsonNode idsNode = arguments.path("ids");
+        if (!idsNode.isArray() || idsNode.isEmpty())
+            throw new IllegalArgumentException("ids: mindestens eine Umsatz-ID angeben.");
+        if (transactionDeleter == null)
+            throw new IllegalStateException("Kein Loeschdienst fuer Umsaetze verfuegbar.");
+        if (idsNode.size() > MAX_DELETE_IDS)
+            throw new IllegalArgumentException("ids: hoechstens " + MAX_DELETE_IDS + " Umsatz-IDs pro Aufruf.");
+        for (JsonNode id : idsNode)
+            if (!id.isTextual() && !id.isNumber())
+                throw new IllegalArgumentException("ids: nur Umsatz-IDs als Text oder Zahl angeben.");
+        boolean dryRun = strictBool(arguments.get("dryRun"), "dryRun");
+
+        Set<String> ids = new LinkedHashSet<>();
+        idsNode.forEach(id -> ids.add(id.asText().trim()));
+
+        Map<String, ObjectNode> entries = new LinkedHashMap<>();
+        Map<String, TransactionDeleter.Candidate> candidates = new LinkedHashMap<>();
+        for (String id : ids)
+        {
+            try
+            {
+                Optional<TransactionDeleter.Candidate> found = transactionDeleter.find(id);
+                if (found.isPresent())
+                {
+                    candidates.put(id, found.get());
+                    entries.put(id, deleteEntry(id, null, found.get()));
+                }
+                else
+                    entries.put(id, deleteEntry(id, "unknown", null));
+            }
+            catch (Exception e)
+            {
+                entries.put(id, deleteError(id, e));
+            }
+        }
+
+        ObjectNode result = mapper.createObjectNode();
+        result.put("dryRun", dryRun);
+        if (dryRun)
+            candidates.keySet().forEach(id -> entries.get(id).put("status", "wouldDelete"));
+        else if (!candidates.isEmpty())
+            confirmAndDelete(result, entries, candidates,
+                countStatus(entries, "unknown") + countStatus(entries, "error"), requestStart);
+
+        ArrayNode results = result.putArray("results");
+        entries.values().forEach(results::add);
+        ObjectNode counts = result.putObject("counts");
+        for (String status : List.of("wouldDelete", "deleted", "unknown", "notConfirmed", "error"))
+            counts.put(status, countStatus(entries, status));
+        return result;
+    }
+
+    private void confirmAndDelete(ObjectNode result, Map<String, ObjectNode> entries,
+                                  Map<String, TransactionDeleter.Candidate> candidates, int skippedCount,
+                                  Instant requestStart)
+    {
+        boolean confirmed;
+        try
+        {
+            confirmed = transactionDeleter.confirm(List.copyOf(candidates.values()), skippedCount, requestStart);
+        }
+        catch (Exception e)
+        {
+            result.put("confirmed", false);
+            result.put("confirmError", describe(e));
+            candidates.keySet().forEach(id -> entries.get(id).put("status", "notConfirmed"));
+            return;
+        }
+        result.put("confirmed", confirmed);
+        int deletedCount = 0;
+        for (String id : candidates.keySet())
+        {
+            ObjectNode entry = entries.get(id);
+            if (!confirmed)
+            {
+                entry.put("status", "notConfirmed");
+                continue;
+            }
+            try
+            {
+                transactionDeleter.delete(id);
+                entry.put("status", "deleted");
+                deletedCount++;
+            }
+            catch (Exception e)
+            {
+                entry.put("status", "error");
+                entry.put("message", describe(e));
+            }
+        }
+        if (deletedCount == 0)
+            return;
+        try
+        {
+            transactionDeleter.refreshOpenViews();
+        }
+        catch (Exception e)
+        {
+            // The deletions already happened; a view that stays stale must not change the reported result.
+        }
+    }
+
+    private ObjectNode deleteEntry(String id, String status, TransactionDeleter.Candidate candidate)
+    {
+        ObjectNode entry = mapper.createObjectNode();
+        entry.put("id", id);
+        if (status != null)
+            entry.put("status", status);
+        if (candidate != null)
+        {
+            ObjectNode transaction = entry.putObject("transaction");
+            transaction.put("kontoId", candidate.accountId());
+            transaction.put("kontoName", candidate.accountName());
+            transaction.put("datum", candidate.date() == null ? null : candidate.date().toString());
+            transaction.put("betrag", candidate.amount());
+            transaction.put("waehrung", candidate.currency() == null || candidate.currency().isBlank()
+                ? "EUR" : candidate.currency().trim());
+            transaction.put("gegenkontoName", candidate.counterpartyName());
+            transaction.put("zweck", candidate.purpose());
+            ArrayNode links = entry.putArray("links");
+            candidate.links().forEach(links::add);
+        }
+        return entry;
+    }
+
+    private ObjectNode deleteError(String id, Exception e)
+    {
+        ObjectNode entry = deleteEntry(id, "error", null);
+        entry.put("message", describe(e));
+        return entry;
+    }
+
+    private static int countStatus(Map<String, ObjectNode> entries, String status)
+    {
+        return (int) entries.values().stream().filter(entry -> status.equals(entry.path("status").asText())).count();
+    }
+
     private ObjectNode createSepaTransferDraft(JsonNode arguments)
     {
         if (!writeEnabled.getAsBoolean())
@@ -598,6 +773,7 @@ public final class McpJsonRpcHandler
     private ObjectNode transaction(ReportTransaction transaction)
     {
         ObjectNode node = mapper.createObjectNode();
+        node.put("id", transaction.getId());
         if (transaction.getDatum() != null)
             node.put("datum", transaction.getDatum().toString());
         if (transaction.getValuta() != null)
@@ -794,6 +970,20 @@ public final class McpJsonRpcHandler
             "Maximale Anzahl zurueckgegebener Umsaetze.");
         property(props, "all", "boolean", "Alle Umsaetze",
             "Wenn true, wird der Standardzeitraum der letzten 90 Tage aufgehoben. Zeitraum-Filter koennen danach weiter einschraenken.");
+        return schema;
+    }
+
+    private ObjectNode transactionsDeleteSchema()
+    {
+        ObjectNode schema = schema();
+        ObjectNode props = (ObjectNode) schema.get("properties");
+        ObjectNode ids = arrayProperty(props, "ids", "Umsatz-IDs",
+            "IDs aus hibiscus_transactions_list (Feld id).");
+        ids.put("minItems", 1);
+        ids.put("maxItems", MAX_DELETE_IDS);
+        property(props, "dryRun", "boolean", "Probelauf",
+            "Wenn true, wird nur aufgelistet, was geloescht wuerde. Kein Dialog, keine Aenderung.");
+        schema.putArray("required").add("ids");
         return schema;
     }
 
@@ -1125,6 +1315,30 @@ public final class McpJsonRpcHandler
         if (node == null || node.isMissingNode() || node.isNull())
             return null;
         return node.asInt();
+    }
+
+    /** A missing or null value is false; otherwise only a JSON boolean or the strings "true"/"false" are accepted. */
+    private static boolean strictBool(JsonNode node, String name)
+    {
+        if (node == null || node.isMissingNode() || node.isNull())
+            return false;
+        if (node.isBoolean())
+            return node.asBoolean();
+        if (node.isTextual())
+        {
+            String value = node.asText().trim();
+            if (value.equalsIgnoreCase("true"))
+                return true;
+            if (value.equalsIgnoreCase("false"))
+                return false;
+        }
+        throw new IllegalArgumentException(name + ": true oder false angeben.");
+    }
+
+    private static String describe(Exception e)
+    {
+        String message = e.getMessage();
+        return message == null || message.isBlank() ? e.getClass().getSimpleName() : message;
     }
 
     private static boolean bool(JsonNode node, boolean fallback)

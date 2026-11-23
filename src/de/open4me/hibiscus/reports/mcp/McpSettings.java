@@ -43,6 +43,16 @@ public final class McpSettings
         SETTINGS.setAttribute("writeEnabled", enabled);
     }
 
+    public static boolean isDeleteEnabled()
+    {
+        return SETTINGS.getBoolean("deleteEnabled", false);
+    }
+
+    public static void setDeleteEnabled(boolean enabled)
+    {
+        SETTINGS.setAttribute("deleteEnabled", enabled);
+    }
+
     public static boolean isLocalNetworkEnabled()
     {
         return SETTINGS.getBoolean(LOCAL_NETWORK_ENABLED, false);
