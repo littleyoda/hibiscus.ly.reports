@@ -1,7 +1,8 @@
 # Entwicklungswerkzeuge
 
 Skripte zum lokalen Testen ohne Apache Ant und ohne die eigene Jameica-Installation
-anzufassen. Alle Testdaten sind erfunden.
+anzufassen. Alle Testdaten sind erfunden. Nur `install-plugin.sh` schreibt ausdruecklich in eine
+bestehende Installation.
 
 ## Voraussetzungen
 
@@ -29,6 +30,17 @@ dev/run-tests.sh de.open4me.hibiscus.reports.mcp.McpJsonRpcHandlerTests   # einz
 Methode `run()` jeder genannten Klasse auf. Der Classpath folgt `compile.path` aus `build/build.xml`:
 die Jars aus `lib/` zuerst, von Hibiscus nur `hibiscus.jar`, `swtchart` und `obantoo`. `CoreTests` bricht derzeit in `DynamicReportTests` ab
 (fehlende Datei `reports/Umsatzkategorien.html`); einzelne Klassen laufen davon unabhaengig.
+
+## Plugin in eine Jameica-Installation uebernehmen
+
+```bash
+dev/install-plugin.sh ~/.jameica/plugins/hibiscus.ly.reports   # Plugin-Ordner der Installation
+```
+
+Baut das Jar aus diesem Checkout (wie `build.sh`) und ersetzt das Jar im angegebenen Plugin-Ordner;
+das bisherige bleibt als `hibiscus.ly.reports.jar.bak-<Datum>` daneben liegen. Bricht ab, solange
+eine Jameica laeuft (auch die Test-Instanz), und wenn `plugin.xml` oder `lib/` im Ziel vom Checkout
+abweichen. Vorher die Tests laufen lassen; danach Jameica neu starten.
 
 ## Isolierte Jameica-Instanz
 

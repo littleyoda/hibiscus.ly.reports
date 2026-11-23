@@ -46,3 +46,13 @@ compile_cp() {
   done
   echo "$cp"
 }
+
+# Uebersetzt src/ dieses Checkouts nach $1 (Klassen) und packt daraus das Plugin-Jar $2 (absoluter Pfad).
+build_plugin_jar() {
+  local classes="$1" jar="$2"
+  rm -rf "$classes"
+  mkdir -p "$classes" "$(dirname "$jar")"
+  "$JAVAC" -nowarn -encoding UTF-8 --release 17 -cp "$(compile_cp)" -d "$classes" $(find "$REPO_DIR/src" -name '*.java')
+  cp -R "$REPO_DIR/src/help" "$classes/help"
+  (cd "$classes" && "$JAR" cf "$jar" .)
+}

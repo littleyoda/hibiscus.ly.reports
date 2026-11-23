@@ -20,11 +20,9 @@ cp -R "$HIBISCUS_DIR" "$WORK/plugins/hibiscus"
 CP="$(compile_cp)"
 
 # hibiscus.ly.reports aus dem aktuellen Checkout
-"$JAVAC" -nowarn -encoding UTF-8 --release 17 -cp "$CP" -d "$BUILD/reports" $(find "$REPO_DIR/src" -name '*.java')
-cp -R "$REPO_DIR/src/help" "$BUILD/reports/help"
 P="$WORK/plugins/hibiscus.ly.reports"
 mkdir -p "$P/lib"
-(cd "$BUILD/reports" && "$JAR" cf "$P/hibiscus.ly.reports.jar" .)
+build_plugin_jar "$BUILD/reports" "$P/hibiscus.ly.reports.jar"
 cp "$REPO_DIR/plugin.xml" "$P/"
 cp -R "$REPO_DIR/lib/." "$P/lib/"
 
