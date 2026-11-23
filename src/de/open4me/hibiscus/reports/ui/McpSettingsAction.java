@@ -22,6 +22,7 @@ public final class McpSettingsAction implements Action
 
             boolean previousEnabled = McpSettings.isEnabled();
             boolean previousWriteEnabled = McpSettings.isWriteEnabled();
+            boolean previousDeleteEnabled = McpSettings.isDeleteEnabled();
             boolean previousLocalNetworkEnabled = McpSettings.isLocalNetworkEnabled();
             int previousPort = McpSettings.getPort();
             String previousNgrokAuthtoken = McpSettings.getNgrokAuthtoken();
@@ -31,6 +32,7 @@ public final class McpSettingsAction implements Action
 
             McpSettings.setEnabled(result.enabled());
             McpSettings.setWriteEnabled(result.writeEnabled());
+            McpSettings.setDeleteEnabled(result.deleteEnabled());
             McpSettings.setLocalNetworkEnabled(result.localNetworkEnabled());
             McpSettings.setPort(result.port());
             McpSettings.setNgrokAuthtoken(result.ngrokAuthtoken());
@@ -48,8 +50,9 @@ public final class McpSettingsAction implements Action
             }
             catch (Exception e)
             {
-                restorePreviousSettings(previousEnabled, previousWriteEnabled, previousLocalNetworkEnabled,
-                    previousPort, previousNgrokAuthtoken, previousPassword, passwordChanged, e);
+                restorePreviousSettings(previousEnabled, previousWriteEnabled, previousDeleteEnabled,
+                    previousLocalNetworkEnabled, previousPort, previousNgrokAuthtoken, previousPassword,
+                    passwordChanged, e);
                 throw e;
             }
 
@@ -99,12 +102,13 @@ public final class McpSettingsAction implements Action
             : "MCP-Server deaktiviert.";
     }
 
-    private void restorePreviousSettings(boolean enabled, boolean writeEnabled, boolean localNetworkEnabled,
-                                         int port, String ngrokAuthtoken, String password,
-                                         boolean passwordChanged, Exception original)
+    private void restorePreviousSettings(boolean enabled, boolean writeEnabled, boolean deleteEnabled,
+                                         boolean localNetworkEnabled, int port, String ngrokAuthtoken,
+                                         String password, boolean passwordChanged, Exception original)
     {
         McpSettings.setEnabled(enabled);
         McpSettings.setWriteEnabled(writeEnabled);
+        McpSettings.setDeleteEnabled(deleteEnabled);
         McpSettings.setLocalNetworkEnabled(localNetworkEnabled);
         McpSettings.setPort(port);
         McpSettings.setNgrokAuthtoken(ngrokAuthtoken);
