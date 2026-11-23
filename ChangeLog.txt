@@ -1,3 +1,6 @@
+	[Fix] MCP/Automatisierung: SEPA-Überweisung mit zweiter Verwendungszweck-Zeile oder weiteren Verwendungszwecken schlug mit "Internal error" fehl; die Zeilen werden jetzt zu einem Verwendungszweck zusammengeführt; die Bestätigung der Automatisierung zeigt den gespeicherten Zweck; Länge und Zeichen werden vor der Bestätigung wie in Hibiscus geprüft; MCP meldet den gespeicherten Verwendungszweck
+	[Fix] Automatisierung: zahlungen.entwurf übernimmt Zahlen wie JavaScript (4711 statt 4711.0) und überspringt null/undefined in weitereVerwendungszwecke
+
 1.3.2 -- 2026-10-11
 1.3.1 -- 2026-10-11
 	MCP-Server global durch ngrok-Tunnel nutzbar

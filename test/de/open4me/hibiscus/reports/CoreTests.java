@@ -22,6 +22,7 @@ import de.open4me.hibiscus.reports.mcp.McpRequestLogTests;
 import de.open4me.hibiscus.reports.mcp.NgrokTunnelTests;
 import de.open4me.hibiscus.reports.mcp.McpOAuthServiceTests;
 import de.open4me.hibiscus.reports.mcp.McpOAuthHttpTests;
+import de.open4me.hibiscus.reports.mcp.SepaPurposeTests;
 import de.open4me.hibiscus.reports.automation.AutomationCoreTests;
 import de.open4me.hibiscus.reports.automation.sql.AutomationSqlDialectTests;
 import de.open4me.hibiscus.reports.automation.runtime.AutomationPaymentsTests;
@@ -48,6 +49,7 @@ public final class CoreTests
         NgrokTunnelTests.run();
         McpOAuthServiceTests.run();
         McpOAuthHttpTests.run();
+        SepaPurposeTests.run();
         McpJsonRpcHandlerTests.run();
         AutomationCoreTests.run();
         AutomationSqlDialectTests.run();

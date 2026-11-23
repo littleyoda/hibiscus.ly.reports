@@ -365,6 +365,15 @@ Unterstützte Zahlungsarten:
 - `Interne Umbuchung`
 - `Echtzeitüberweisung`
 
+SEPA kennt nur ein Verwendungszweck-Feld. `purpose2` und `additionalPurposes`
+werden deshalb mit je einem Leerzeichen an `purpose` angehängt; Zeilenumbrüche
+und Tabulatoren innerhalb eines Teils werden zu einem Leerzeichen, normale
+Leerzeichen bleiben unverändert. Der zusammengeführte Verwendungszweck darf
+höchstens so lang sein, wie Hibiscus erlaubt (Standard 140 Zeichen), und nur
+Zeichen enthalten, die Hibiscus für SEPA zulässt (z.B. kein `€`, keine Emoji).
+Sonst lehnt das Tool die Überweisung mit einer entsprechenden Meldung ab.
+Die Antwort enthält den gespeicherten Verwendungszweck als `purpose`.
+
 ## Resources
 
 Der Server stellt zusätzlich MCP-Resources bereit:
