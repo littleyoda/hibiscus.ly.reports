@@ -55,6 +55,9 @@ public final class McpJsonRpcHandlerTests
             rejectsTransferDraftWithFriendlyRequiredFieldMessage();
             rejectsInvalidTransferDraft();
             createsTransferDraft();
+            passesTransferPurposesThroughUnchanged();
+            rejectsAdditionalPurposesThatAreNotAList();
+            returnsStoredPurpose();
         }
         catch (Exception e)
         {
@@ -133,6 +136,11 @@ public final class McpJsonRpcHandlerTests
         checkEquals("Empfänger-IBAN", schema.path("recipientIban").path("title").asText(), "iban title");
         checkEquals("Betrag", schema.path("amount").path("title").asText(), "amount title");
         checkEquals("Überweisungsart", schema.path("type").path("title").asText(), "type title");
+        String purpose = schema.path("purpose").path("description").asText();
+        check(purpose.contains("hoechstens " + SepaPurpose.hibiscusMaxLength() + " Zeichen"),
+            "purpose description names the Hibiscus limit: " + purpose);
+        check(purpose.endsWith(SepaPurpose.hibiscusValidChars()),
+            "purpose description names the Hibiscus characters: " + purpose);
     }
 
     private static void listsAccounts() throws Exception
@@ -381,6 +389,73 @@ public final class McpJsonRpcHandlerTests
         checkEquals("Nicht an die Bank gesendet", draft.path("sendStatus").asText(), "send status text");
     }
 
+    private static void passesTransferPurposesThroughUnchanged() throws Exception
+    {
+        FakeTransferDraftWriter writer = new FakeTransferDraftWriter();
+        McpJsonRpcHandler handler = handler(new FakeTransactionProvider(), writer, true);
+        JsonNode response = MAPPER.readTree(handler.handle("""
+            {"jsonrpc":"2.0","id":12,"method":"tools/call","params":{
+              "name":"hibiscus_sepa_transfer_create",
+              "arguments":{
+                "accountId":"active",
+                "recipientName":"Max Mustermann",
+                "recipientIban":"DE02120300000000202051",
+                "amount":1,
+                "purpose":"Rechnung 4711",
+                "purpose2":"vom 01.01.2026",
+                "additionalPurposes":["Auftrag 123456"]
+              }
+            }}
+            """));
+        check(!response.has("error"), "multi-line purpose accepted by the handler");
+        checkEquals("Rechnung 4711", writer.request.purpose(), "purpose passed on");
+        checkEquals("vom 01.01.2026", writer.request.purpose2(), "purpose2 passed on");
+        checkEquals(List.of("Auftrag 123456"), writer.request.additionalPurposes(),
+            "additional purposes passed on");
+    }
+
+    private static void rejectsAdditionalPurposesThatAreNotAList() throws Exception
+    {
+        McpJsonRpcHandler handler = handler(new FakeTransactionProvider(), new FakeTransferDraftWriter(), true);
+        JsonNode response = MAPPER.readTree(handler.handle("""
+            {"jsonrpc":"2.0","id":13,"method":"tools/call","params":{
+              "name":"hibiscus_sepa_transfer_create",
+              "arguments":{
+                "accountId":"active",
+                "recipientName":"Max Mustermann",
+                "recipientIban":"DE02120300000000202051",
+                "amount":1,
+                "purpose":"Rechnung 123",
+                "additionalPurposes":"keine Liste"
+              }
+            }}
+            """));
+        check(response.has("error"), "additional purposes without array rejected");
+        check(response.path("error").path("data").asText().contains("Liste"), "list message");
+    }
+
+    private static void returnsStoredPurpose() throws Exception
+    {
+        McpJsonRpcHandler handler = handler(new FakeTransactionProvider(), new FakeTransferDraftWriter(), true);
+        JsonNode response = MAPPER.readTree(handler.handle("""
+            {"jsonrpc":"2.0","id":14,"method":"tools/call","params":{
+              "name":"hibiscus_sepa_transfer_create",
+              "arguments":{
+                "accountId":"active",
+                "recipientName":"Max Mustermann",
+                "recipientIban":"DE02120300000000202051",
+                "amount":1,
+                "purpose":"Rechnung 4711",
+                "purpose2":"vom 01.01.2026",
+                "additionalPurposes":["Auftrag 123456"]
+              }
+            }}
+            """));
+        checkEquals("Rechnung 4711 vom 01.01.2026 Auftrag 123456",
+            response.path("result").path("structuredContent").path("purpose").asText(),
+            "response shows the stored purpose");
+    }
+
     private static void withProviderExtension(ThrowingRunnable runnable) throws Exception
     {
         Extension extension = extendable -> {
@@ -592,9 +667,12 @@ public final class McpJsonRpcHandlerTests
         public Result create(Request request)
         {
             this.request = request;
+            // Wie HibiscusSepaTransferDraftWriter: zusammenfuehren und pruefen, gespeicherten Zweck melden.
+            String purpose = SepaPurpose.mergeForHibiscus(request.purpose(), request.purpose2(),
+                request.additionalPurposes());
             return new Result("draft-1", request.accountId(), "Aktives Girokonto", request.recipientName(),
                 request.recipientIban(), request.recipientBic(), request.amount(), request.executionDate(),
-                request.type(), true);
+                request.type(), purpose, true);
         }
     }
 

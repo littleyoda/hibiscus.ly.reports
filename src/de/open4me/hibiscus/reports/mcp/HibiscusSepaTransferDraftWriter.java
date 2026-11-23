@@ -19,21 +19,28 @@ public final class HibiscusSepaTransferDraftWriter implements SepaTransferDraftW
         Konto account = Settings.getDBService().createObject(Konto.class, request.accountId());
         validateAccount(account);
 
+        // Eingaben vor dem Anlegen pruefen: Ein Fehler hier darf nicht in den catch-Block unten laufen, der sonst
+        // transactionRollback() ohne transactionBegin() aufruft. Die Transaktionszaehlung haengt an der gemeinsamen
+        // DB-Verbindung, so ein Rollback koennte eine fremde Transaktion treffen.
+        AuslandsUeberweisungTyp type = type(request.type());
+        String recipientBic = normalizeRecipientBic(request.recipientBic(), request.recipientIban());
+        // SEPA kennt nur einen Verwendungszweck; Hibiscus lehnt setZweck2 und
+        // setWeitereVerwendungszwecke bei AuslandsUeberweisung ab. Laenge und Zeichen werden wie in
+        // Hibiscus geprueft, damit der Aufrufer eine lesbare Meldung bekommt.
+        String purpose = SepaPurpose.mergeForHibiscus(request.purpose(), request.purpose2(),
+            request.additionalPurposes());
+
         AuslandsUeberweisung transfer = null;
         try
         {
             transfer = Settings.getDBService().createObject(AuslandsUeberweisung.class, null);
-            AuslandsUeberweisungTyp type = type(request.type());
-            String recipientBic = normalizeRecipientBic(request.recipientBic(), request.recipientIban());
             transfer.transactionBegin();
             transfer.setKonto(account);
             transfer.setGegenkontoName(request.recipientName());
             transfer.setGegenkontoNummer(request.recipientIban());
             transfer.setGegenkontoBLZ(recipientBic);
             transfer.setBetrag(request.amount().doubleValue());
-            transfer.setZweck(request.purpose());
-            transfer.setZweck2(request.purpose2());
-            transfer.setWeitereVerwendungszwecke(request.additionalPurposes().toArray(new String[0]));
+            transfer.setZweck(purpose);
             transfer.setTermin(toDate(request.executionDate()));
             transfer.setEndtoEndId(request.endToEndId());
             transfer.setPmtInfId(request.pmtInfId());
@@ -46,7 +53,7 @@ public final class HibiscusSepaTransferDraftWriter implements SepaTransferDraftW
 
             return new Result(created.getID(), account.getID(), accountName(account),
                 created.getGegenkontoName(), created.getGegenkontoNummer(), recipientBic,
-                request.amount(), request.executionDate(), publicType(type), true);
+                request.amount(), request.executionDate(), publicType(type), created.getZweck(), true);
         }
         catch (Exception e)
         {

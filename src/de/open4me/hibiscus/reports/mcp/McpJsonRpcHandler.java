@@ -480,6 +480,8 @@ public final class McpJsonRpcHandler
         if (draft.executionDate() != null)
             result.put("executionDate", draft.executionDate().toString());
         result.put("type", draft.type());
+        if (draft.purpose() != null)
+            result.put("purpose", draft.purpose());
         result.put("created", draft.created());
         result.put("status", "Entwurf angelegt");
         result.put("sent", false);
@@ -808,6 +810,9 @@ public final class McpJsonRpcHandler
 
     private ObjectNode sepaTransferSchema()
     {
+        // Obergrenze und Zeichensatz sind Hibiscus-Einstellungen; das Schema nennt die aktuellen Werte.
+        int maxLength = SepaPurpose.hibiscusMaxLength();
+        String validChars = SepaPurpose.hibiscusValidChars();
         ObjectNode schema = schema();
         ObjectNode props = (ObjectNode) schema.get("properties");
         property(props, "accountId", "string", label("accountId"),
@@ -821,11 +826,13 @@ public final class McpJsonRpcHandler
         property(props, "amount", "number", label("amount"),
             "Positiver Betrag in Euro. Dezimalpunkt oder Dezimalkomma sind erlaubt.");
         property(props, "purpose", "string", label("purpose"),
-            "Erste Zeile des Verwendungszwecks.");
+            "Verwendungszweck. SEPA kennt nur ein Feld. Hibiscus erlaubt hoechstens " + maxLength
+                + " Zeichen und nur diese Zeichen: " + validChars);
         property(props, "purpose2", "string", label("purpose2"),
-            "Zweite Zeile des Verwendungszwecks.");
+            "Optional. Wird mit einem Leerzeichen an purpose angehaengt, weil SEPA keine zweite Zeile kennt.");
         property(props, "additionalPurposes", "array", label("additionalPurposes"),
-            "Weitere Verwendungszweck-Zeilen.")
+            "Optional. Werden mit Leerzeichen an purpose angehaengt, weil SEPA keine weiteren Zeilen kennt. "
+                + "Der gesamte Verwendungszweck darf hoechstens " + maxLength + " Zeichen lang sein.")
             .putObject("items").put("type", "string");
         dateProperty(props, "executionDate", label("executionDate"),
             "Ausfuehrungsdatum im ISO-Format YYYY-MM-DD. Wenn nicht gesetzt, wird heute verwendet.");

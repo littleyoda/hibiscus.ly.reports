@@ -14,8 +14,10 @@ public interface SepaTransferDraftWriter
     {
     }
 
+    /** {@code purpose} ist der gespeicherte, zusammengefuehrte Verwendungszweck. */
     record Result(String id, String accountId, String accountName, String recipientName, String recipientIban,
-                  String recipientBic, BigDecimal amount, LocalDate executionDate, String type, boolean created)
+                  String recipientBic, BigDecimal amount, LocalDate executionDate, String type, String purpose,
+                  boolean created)
     {
     }
 }
