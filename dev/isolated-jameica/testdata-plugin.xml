@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<plugin xmlns="http://www.willuhn.de/schema/jameica-plugin"
+        name="testdata" version="0.0.1" class="de.example.testdata.TestDataPlugin">
+  <description>Throwaway test data for an isolated manual test</description>
+  <requires jameica="2.10.0+">
+    <import plugin="hibiscus" version="2.10.0+" />
+  </requires>
+  <classfinder>
+    <include>testdata\.jar</include>
+    <include>.*\.class</include>
+  </classfinder>
+</plugin>
