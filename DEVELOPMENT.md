@@ -4,6 +4,11 @@ Diese Datei beschreibt technische Details fuer Entwickler. Die fuer
 Report-Autoren nutzbaren Template-Objekte sind in [README_REPORTS.md](README_REPORTS.md)
 dokumentiert.
 
+## Lokal testen
+
+Tests ohne Apache Ant und eine isolierte Jameica-Instanz mit erfundenen Testdaten (z. B. fuer
+MCP-Pruefungen, ohne die eigene Installation anzufassen) beschreibt [dev/README.md](dev/README.md).
+
 ## Template-Objekte aus anderen Plugins
 
 Andere Jameica-Plugins koennen eigene Template-Objekte bereitstellen, ohne dass

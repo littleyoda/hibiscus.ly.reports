@@ -3,3 +3,4 @@
 /releases/
 *.class
 
+/dev/isolated-jameica/run/
